@@ -161,12 +161,11 @@ def make_song(raw_lyrics: str, style_desc: str, *,
 
 ## 9. 依赖与 LLM（Planner 需定）
 
-Planner 和歌词结构化需要一个 LLM 做文本理解。这是 V0.1 唯一的新外部依赖，两种选法：
+Planner 和歌词结构化需要一个 LLM 做文本理解。这是 V0.1 唯一的新外部依赖。
 
-- **A. 文本 LLM API（推荐）**：调一次便宜的文本模型（如 Claude Haiku / 同级），**不占 GPU**、几乎零成本、质量稳。缺点是需网络与 key。
-- **B. 本地小模型（如 Qwen 小尺寸）**：完全自建、离线，但要额外占显存/加载时间，和"省钱省事"目标略冲突。
+**已定：采用 A —— 文本 LLM API。** 调一次便宜的文本模型（如 Claude Haiku / 同级），**不占 GPU**、几乎零成本、质量稳，省下的显存全给 ACE-Step。key 与模型名放 `config.py`，并把 LLM 调用封装成单一接口，后续想切本地小模型（Qwen）只改一处实现，不动其它组件。
 
-推荐 **A**，并在 `config.py` 做成可切换，后续想完全离线再换 B。**待用户确认。**
+- 备选 B（本地小模型，完全离线）暂不实现，仅保留接口可替换的空间。
 
 > ACE-Step 1.5 / Demucs / Seed-VC 权重首次运行下载并缓存到持久目录；版本在 `requirements.txt` 里 pin 死。
 
