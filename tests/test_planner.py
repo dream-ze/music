@@ -41,3 +41,11 @@ def test_plan_song_falls_back_on_exception(monkeypatch):
     monkeypatch.setattr(planner.llm, "complete", boom)
     spec = planner.plan_song("女声")
     assert spec.language == "zh"  # 未抛异常，回退成功
+
+
+def test_plan_song_falls_back_on_invalid_spec(monkeypatch):
+    # valid JSON, but bpm out of range → parse_spec raises → fallback to safe_spec
+    bad = json.dumps({"bpm": 999})
+    monkeypatch.setattr(planner.llm, "complete", lambda *a, **k: bad)
+    spec = planner.plan_song("随便")
+    assert spec.bpm == SAFE_DEFAULT_SPEC["bpm"]
