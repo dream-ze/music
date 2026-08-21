@@ -1,9 +1,3 @@
-# Workaround for gradio CLI requiring requests module (not installed in this env)
-import sys
-import unittest.mock
-if 'requests' not in sys.modules:
-    sys.modules['requests'] = unittest.mock.MagicMock()
-
 import gradio as gr
 import config
 from src.pipeline import make_song

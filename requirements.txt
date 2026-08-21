@@ -2,6 +2,7 @@ pytest==9.1.1
 pydantic==2.13.4
 anthropic==1.0.0
 gradio==6.25.0
+requests==2.34.2
 torch
 torchaudio
 # ACE-Step 1.5：按官方 README 从源码/包安装，见 colab.ipynb
