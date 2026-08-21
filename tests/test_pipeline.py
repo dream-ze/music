@@ -14,6 +14,7 @@ def test_make_song_orchestrates(monkeypatch, tmp_path):
     captured = {}
     def fake_gen(structured_lyrics, spec, *, length, seed, out_path):
         captured["lyrics"] = structured_lyrics
+        captured["spec"] = spec
         captured["length"] = length
         with open(out_path, "wb") as f:
             f.write(b"RIFF")
@@ -28,3 +29,4 @@ def test_make_song_orchestrates(monkeypatch, tmp_path):
     assert result["song"].endswith(".wav")
     assert captured["length"] == "short"
     assert "[Verse]" in captured["lyrics"]
+    assert isinstance(captured["spec"], SongSpec)
