@@ -11,7 +11,7 @@ class SongSpec(BaseModel):
     vocal: VocalSpec = Field(default_factory=VocalSpec)
     genre: list[str] = Field(default_factory=lambda: ["mandopop"])
     mood: list[str] = Field(default_factory=lambda: ["warm"])
-    instrument: list[str] = Field(default_factory=lambda: ["piano"])
+    instrument: list[str] = Field(default_factory=lambda: ["piano", "soft drums"])
     bpm: int = Field(default=90, ge=40, le=200)
     structure: list[str] = Field(
         default_factory=lambda: ["Intro", "Verse", "Chorus", "Verse", "Chorus", "Outro"]

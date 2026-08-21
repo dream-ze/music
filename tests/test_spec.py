@@ -36,3 +36,7 @@ def test_parse_missing_field_uses_model_default():
     data = {k: v for k, v in SAFE_DEFAULT_SPEC.items() if k != "vocal"}
     spec = parse_spec(data)
     assert spec.vocal.gender == "female"
+
+
+def test_songspec_default_instrument_matches_safe_default():
+    assert SongSpec().instrument == SAFE_DEFAULT_SPEC["instrument"]
