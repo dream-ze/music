@@ -1,0 +1,7 @@
+pytest==8.3.4
+pydantic==2.10.4
+anthropic==0.42.0
+gradio==5.9.1
+torch
+torchaudio
+# ACE-Step 1.5：按官方 README 从源码/包安装，见 colab.ipynb
