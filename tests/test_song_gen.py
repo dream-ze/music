@@ -13,12 +13,20 @@ def test_length_full_maps_to_full_duration():
 
 
 def test_prompt_contains_genre_and_instrument():
-    spec = safe_spec()  # genre=[mandopop], instrument=[piano, soft drums]
+    spec = safe_spec()  # genre=[mandopop], instrument=[piano, soft drums], mood=[warm], vocal=gender='female' style='soft'
     p = build_acestep_params(spec)
     assert "mandopop" in p["prompt"]
     assert "piano" in p["prompt"]
+    assert "warm" in p["prompt"]
+    assert "female vocal" in p["prompt"]
 
 
 def test_seed_passthrough():
     p = build_acestep_params(safe_spec(), seed=123)
     assert p["seed"] == 123
+
+
+def test_language_key_in_params():
+    p = build_acestep_params(safe_spec())
+    assert p["language"] == safe_spec().language
+    assert p["language"] == "zh"
