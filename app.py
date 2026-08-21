@@ -7,7 +7,11 @@ config.ensure_dirs()
 
 def on_generate(lyrics_text, feeling, length_label, seed):
     length = "short" if length_label == "短版 Demo" else "full"
-    seed_val = int(seed) if str(seed).strip() else None
+    s = str(seed).strip()
+    try:
+        seed_val = int(s) if s else None
+    except ValueError:
+        seed_val = None  # 非法输入按"随机"处理
     result = make_song(lyrics_text, feeling, length=length, seed=seed_val)
     return result["song"], result["structured_lyrics"]
 
