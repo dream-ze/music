@@ -1,6 +1,7 @@
 from src.spec import SongSpec
 
 _LENGTH_MAP = {"short": 45, "full": 210}
+_INFER_STEP = 27  # ACE-Step 1.5 推荐推理步数；OOM 时可调低到 15-20
 
 
 def build_acestep_params(spec: SongSpec, length: str = "full", seed: int | None = None) -> dict:
@@ -31,7 +32,7 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
         prompt=params["prompt"],
         lyrics=structured_lyrics,
         audio_duration=params["duration"],
-        infer_step=27,
+        infer_step=_INFER_STEP,
         manual_seeds=str(params["seed"]) if params["seed"] is not None else None,
         save_path=out_path,
     )

@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from src import llm
 from src.spec import SongSpec, parse_spec, safe_spec
@@ -14,6 +15,11 @@ instrument(数组), bpm(40-200 整数), structure(数组, 如 Intro/Verse/Pre-Ch
 
 
 def _extract_json(text: str) -> dict:
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if not m:
         raise ValueError("no json object in llm output")
@@ -26,5 +32,6 @@ def plan_song(style_desc: str, lyrics_hint: str = "") -> SongSpec:
     try:
         raw = llm.complete(prompt, system=_SYSTEM)
         return parse_spec(_extract_json(raw))
-    except Exception:
+    except Exception as e:
+        logging.warning("planner LLM failed, using safe default: %s", e)
         return safe_spec()

@@ -1,3 +1,5 @@
+import logging
+
 from src import llm
 from src.spec import SongSpec
 
@@ -20,5 +22,6 @@ def structure_lyrics(raw_lyrics: str, spec: SongSpec) -> str:
         if out and "[" in out:
             return out.strip()
         return _fallback(raw_lyrics)
-    except Exception:
+    except Exception as e:
+        logging.warning("lyrics LLM failed, using fallback: %s", e)
         return _fallback(raw_lyrics)
