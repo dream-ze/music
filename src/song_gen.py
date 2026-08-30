@@ -1,4 +1,5 @@
 import os
+import sys
 
 from src.spec import SongSpec
 
@@ -32,6 +33,11 @@ def _get_handlers():
         return _dit_handler, _llm_handler
 
     import config
+
+    # ACE-Step 由官方源码独立管理环境；将其源码根目录加入模块搜索路径，
+    # 无需把项目本身重复安装进应用环境。
+    if config.ACESTEP_PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, config.ACESTEP_PROJECT_ROOT)
     from acestep.handler import AceStepHandler
     from acestep.llm_inference import LLMHandler
 
@@ -41,6 +47,7 @@ def _get_handlers():
         project_root=config.ACESTEP_PROJECT_ROOT,
         config_path=config.ACESTEP_CONFIG,
         device=device,
+        offload_to_cpu=device == "cuda",
     )
     llm = LLMHandler()
     llm.initialize(
@@ -48,6 +55,7 @@ def _get_handlers():
         lm_model_path=config.ACESTEP_LM_MODEL,
         backend=config.acestep_backend(device),
         device=device,
+        offload_to_cpu=device == "cuda",
     )
     _dit_handler, _llm_handler = dit, llm
     return dit, llm
@@ -61,6 +69,10 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
     ⚠ 集成点：config.ACESTEP_* 路径为机器相关，需在 Colab 冒烟测试时以实际
     clone/权重下载位置校准；权重首次运行自动下载。
     """
+    import config
+
+    if config.ACESTEP_PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, config.ACESTEP_PROJECT_ROOT)
     from acestep.inference import GenerationParams, GenerationConfig, generate_music
 
     p = build_acestep_params(spec, length=length, seed=seed)

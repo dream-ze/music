@@ -4,4 +4,5 @@ outputs/*
 !outputs/.gitkeep
 .venv/
 .env
+.cache/
 *.wav

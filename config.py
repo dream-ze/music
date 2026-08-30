@@ -21,8 +21,12 @@ ACESTEP_LM_MODEL = os.environ.get("ACESTEP_LM_MODEL", "acestep-5Hz-lm-0.6B")
 
 
 def acestep_backend(device: str) -> str:
-    """按设备选 5Hz 语言模型后端: CUDA->vllm, Apple->mlx, 其余->pt。"""
-    return {"cuda": "vllm", "mps": "mlx"}.get(device, "pt")
+    """按设备选择 5Hz 语言模型后端。
+
+    本项目默认面向 8GB 显存设备；ACE-Step 官方建议这一档在 Windows
+    使用 PyTorch 后端，避免 vLLM 与 DiT 同时常驻导致显存不足。
+    """
+    return "mlx" if device == "mps" else "pt"
 
 
 def get_device() -> str:
