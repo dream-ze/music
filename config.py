@@ -6,6 +6,45 @@ ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-haiku-4-5-20251001")
 
+LLM_PROVIDERS = {
+    "deepseek": {
+        "label": "DeepSeek", "model": "deepseek-v4-flash",
+        "key_env": "DEEPSEEK_API_KEY", "base_url": "https://api.deepseek.com/v1",
+        "adapter": "openai",
+    },
+    "openai": {
+        "label": "OpenAI", "model": "gpt-5-nano",
+        "key_env": "OPENAI_API_KEY", "base_url": "https://api.openai.com/v1",
+        "adapter": "openai",
+    },
+    "qwen": {
+        "label": "通义千问", "model": "qwen-flash",
+        "key_env": "DASHSCOPE_API_KEY",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "adapter": "openai",
+    },
+    "gemini": {
+        "label": "Gemini", "model": "gemini-2.5-flash",
+        "key_env": "GEMINI_API_KEY", "base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "adapter": "gemini",
+    },
+    "anthropic": {
+        "label": "Anthropic", "model": LLM_MODEL,
+        "key_env": "ANTHROPIC_API_KEY", "base_url": None, "adapter": "anthropic",
+    },
+    "ollama": {
+        "label": "Ollama（本地）", "model": "qwen2.5:3b",
+        "key_env": None, "base_url": "http://127.0.0.1:11434", "adapter": "ollama",
+    },
+}
+
+
+def get_llm_provider(name: str) -> dict:
+    try:
+        return LLM_PROVIDERS[name]
+    except KeyError as exc:
+        raise ValueError(f"不支持的模型供应商: {name}") from exc
+
 # ACE-Step 1.5 集成配置。
 # 官方: https://github.com/ace-step/ACE-Step-1.5
 # ⚠ project_root / checkpoint_dir 为机器相关路径，权重首次运行自动下载；

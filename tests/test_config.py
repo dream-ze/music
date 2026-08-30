@@ -16,3 +16,11 @@ def test_ensure_dirs_creates_outputs(tmp_path, monkeypatch):
     config.ensure_dirs()
     assert os.path.isdir(config.OUTPUTS_DIR)
     assert os.path.isdir(config.ASSETS_DIR)
+
+
+def test_llm_provider_registry_contains_supported_providers():
+    assert set(config.LLM_PROVIDERS) == {
+        "deepseek", "openai", "qwen", "gemini", "anthropic", "ollama"
+    }
+    assert config.get_llm_provider("deepseek")["model"] == "deepseek-v4-flash"
+    assert config.get_llm_provider("ollama")["key_env"] is None

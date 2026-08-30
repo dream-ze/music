@@ -2,6 +2,7 @@ pydantic==2.13.4
 anthropic==1.0.0
 gradio==5.9.1
 requests==2.34.2
+keyring>=25.6,<26
 torch
 torchaudio
 # ACE-Step 1.5：从官方仓库源码安装（非 pip 包），见 colab.ipynb
