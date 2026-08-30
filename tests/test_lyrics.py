@@ -24,3 +24,16 @@ def test_structure_lyrics_fallback_on_empty(monkeypatch):
     monkeypatch.setattr(lyrics.llm, "complete", lambda *a, **k: "   ")
     out = lyrics.structure_lyrics("只有一句", safe_spec())
     assert "[Verse]" in out and "[Chorus]" in out and "只有一句" in out
+
+
+def test_structure_lyrics_reports_fallback_without_secret(monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("network down, key=super-secret")
+
+    events = []
+    monkeypatch.setattr(lyrics.llm, "complete", boom)
+    lyrics.structure_lyrics(
+        "歌词", safe_spec(), llm_options={"provider": "openai"}, status_events=events
+    )
+    assert events == ["歌词整理：已回退（模型调用失败）"]
+    assert "super-secret" not in events[0]

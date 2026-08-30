@@ -43,6 +43,24 @@ def test_plan_song_falls_back_on_exception(monkeypatch):
     assert spec.language == "zh"  # 未抛异常，回退成功
 
 
+def test_plan_song_passes_llm_options_and_reports_status(monkeypatch):
+    captured = {}
+    events = []
+
+    def fake(*args, **kwargs):
+        captured.update(kwargs)
+        return json.dumps(SAFE_DEFAULT_SPEC)
+
+    monkeypatch.setattr(planner.llm, "complete", fake)
+    planner.plan_song(
+        "温柔", llm_options={"provider": "deepseek", "model": "custom", "api_key": "k"},
+        status_events=events,
+    )
+    assert captured["provider"] == "deepseek"
+    assert captured["model"] == "custom"
+    assert events == ["歌曲规划：模型调用成功"]
+
+
 def test_plan_song_falls_back_on_invalid_spec(monkeypatch):
     # valid JSON, but bpm out of range → parse_spec raises → fallback to safe_spec
     bad = json.dumps({"bpm": 999})

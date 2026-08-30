@@ -4,12 +4,12 @@ from src.spec import SAFE_DEFAULT_SPEC, SongSpec
 
 
 def test_make_song_orchestrates(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        pipeline.planner.llm, "complete", lambda *a, **k: json.dumps(SAFE_DEFAULT_SPEC)
-    )
-    monkeypatch.setattr(
-        pipeline.lyrics.llm, "complete", lambda *a, **k: "[Verse]\nx\n[Chorus]\ny"
-    )
+    def fake_complete(*args, **kwargs):
+        if "音乐制作人" in kwargs.get("system", ""):
+            return json.dumps(SAFE_DEFAULT_SPEC)
+        return "[Verse]\nx\n[Chorus]\ny"
+
+    monkeypatch.setattr(pipeline.planner.llm, "complete", fake_complete)
 
     captured = {}
     def fake_gen(structured_lyrics, spec, *, length, seed, out_path):
@@ -30,3 +30,31 @@ def test_make_song_orchestrates(monkeypatch, tmp_path):
     assert captured["length"] == "short"
     assert "[Verse]" in captured["lyrics"]
     assert isinstance(captured["spec"], SongSpec)
+    assert result["llm_status"] == [
+        "歌曲规划：模型调用成功", "歌词整理：模型调用成功"
+    ]
+
+
+def test_make_song_propagates_llm_options_and_keeps_generating_on_fallback(
+    monkeypatch, tmp_path
+):
+    calls = []
+
+    def fail(*args, **kwargs):
+        calls.append(kwargs)
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(pipeline.planner.llm, "complete", fail)
+    monkeypatch.setattr(
+        pipeline.song_gen, "generate_song",
+        lambda lyrics, spec, **kwargs: kwargs["out_path"],
+    )
+    options = {"provider": "gemini", "model": "gemini-test", "api_key": "k"}
+    result = pipeline.make_song(
+        "词", "感觉", length="short", work_dir=str(tmp_path), llm_options=options
+    )
+    assert len(calls) == 2
+    assert all(call["provider"] == "gemini" for call in calls)
+    assert result["llm_status"] == [
+        "歌曲规划：已回退（模型调用失败）", "歌词整理：已回退（模型调用失败）"
+    ]
