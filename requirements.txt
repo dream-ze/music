@@ -4,4 +4,5 @@ gradio==5.9.1
 requests==2.34.2
 torch
 torchaudio
-# ACE-Step 1.5：按官方 README 从源码/包安装，见 colab.ipynb
+# ACE-Step 1.5：从官方仓库源码安装（非 pip 包），见 colab.ipynb
+# https://github.com/ace-step/ACE-Step-1.5
