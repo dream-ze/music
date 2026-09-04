@@ -83,3 +83,18 @@ def get_device() -> str:
 def ensure_dirs() -> None:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     os.makedirs(ASSETS_DIR, exist_ok=True)
+
+
+# Web 后端配置
+DB_PATH = os.environ.get("DB_PATH", os.path.join(BASE_DIR, "ze_music.db"))
+APP_PASSCODE = os.environ.get("APP_PASSCODE", "")
+CORS_ORIGINS = [
+    o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()
+]
+
+# Cloudflare R2（S3 兼容）
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY", "")
+R2_SECRET_KEY = os.environ.get("R2_SECRET_KEY", "")
+R2_BUCKET = os.environ.get("R2_BUCKET", "")
+R2_PUBLIC_BASE = os.environ.get("R2_PUBLIC_BASE", "")  # 如 https://xxx.r2.dev

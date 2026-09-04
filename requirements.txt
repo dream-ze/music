@@ -5,5 +5,8 @@ requests==2.34.2
 keyring>=25.6,<26
 torch
 torchaudio
+fastapi
+uvicorn[standard]
+boto3
 # ACE-Step 1.5：从官方仓库源码安装（非 pip 包），见 colab.ipynb
 # https://github.com/ace-step/ACE-Step-1.5
