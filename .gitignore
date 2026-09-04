@@ -9,3 +9,6 @@ outputs/*
 
 # brainstorming visual companion
 .superpowers/
+
+# sqlite
+*.db
