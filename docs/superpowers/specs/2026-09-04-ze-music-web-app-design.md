@@ -9,7 +9,7 @@
 
 - 前端:Next.js 部署在 Vercel(免费)
 - 后端:FastAPI 包住现有引擎,跑在一台家里常开的机器(Mac 或 Windows)
-- 内网穿透:Cloudflare Tunnel 把后端暴露成稳定公网地址
+- 内网穿透:Tailscale Funnel 把后端暴露成稳定公网 HTTPS 地址(免费,不需域名)
 - 音频:WAV → MP3,存 Cloudflare R2,前端播放 R2 公网 URL
 - 元数据:SQLite
 
@@ -43,7 +43,7 @@
                                                         │
                                           ②POST /api/generate
                                                         ▼
-                                            [Cloudflare Tunnel]
+                                    [Tailscale Funnel  *.ts.net]
                                                         │
                                                         ▼
                                       [家里常开机器: FastAPI :8000]
@@ -175,17 +175,21 @@ jobs(
 - 共享口令(或一小张"昵称→口令"表),后端 `X-Passcode` 校验,值来自环境变量。
 - 不做账号体系。昵称用于 `created_by` 显示和"我创作的"筛选。
 
-### 5. Cloudflare Tunnel + 部署
+### 5. Tailscale Funnel + 部署
 
-- `cloudflared` **命名隧道**(named tunnel),绑定一个 Cloudflare 上的域名/子域,给前端一个**稳定**的 API 地址(quick tunnel 的随机 `trycloudflare.com` URL 每次变,不适合 Vercel 环境变量)。
-- FastAPI 开 CORS 允许 Vercel 域名。
-- 后端跑法:家里机器上 `uvicorn` + `cloudflared tunnel run`(可写成一键脚本/开机自启)。
+- **Tailscale Funnel** 把家里机器的本地 `:8000` 暴露成稳定公网 HTTPS 地址 `https://<机器名>.<tailnet>.ts.net`,**免费、不需要自有域名**。
+- 前置(admin 控制台一次性开启):MagicDNS、HTTPS Certificates、Funnel 权限(Access controls → "Add Funnel to policy")。
+- 启动:`uvicorn server.app:app --port 8000` 后 `tailscale funnel --bg 8000`(后台常驻,自动映射到公网 443)。
+- Funnel 只支持公网端口 443 / 8443 / 10000,命令默认走 443,本地端口随意(用 8000)。
+- **平台坑**:若服务器是 **Mac**,必须用开源/CLI 版 Tailscale(`brew install tailscale` + `tailscaled`),App Store 版不支持 Funnel;**Windows** 普通客户端原生支持,更省事。
+- FastAPI 开 CORS 允许 Vercel 前端域名。
+- 部署脚本:一键拉起 uvicorn + funnel(可配开机自启),把打印出的 `*.ts.net` 地址填进 Vercel 的 `NEXT_PUBLIC_API_BASE`。
 
 ## 错误处理
 
 - **LLM 规划失败**:现有逻辑静默回退安全默认。v1 至少在 `songs` 记一个"AI 规划是否生效"标记(findings.md P0-3),便于排查;是否在 UI 提示留到实现定。
 - **GPU OOM / 生成失败**:`jobs.status=error` + 人类可读消息,前端轮询到 error 后展示"生成失败,请重试"。
-- **机器离线**:Tunnel 断 → 生成和画廊列表都不可用(SQLite 在家里机器上);但 R2 里的音频直链仍可播。这是自托管的固有取舍,v1 接受。
+- **机器离线**:Funnel 断 → 生成和画廊列表都不可用(SQLite 在家里机器上);但 R2 里的音频直链仍可播。这是自托管的固有取舍,v1 接受。
 - **口令错误**:后端 401,前端提示重新输入。
 
 ## 测试
@@ -207,9 +211,9 @@ config.py       # 加 R2 / 口令 / CORS 相关配置项
 
 ## 前置准备(部署前你需要有)
 
-- Cloudflare 账号 + R2 bucket + API token(建 bucket、配公开访问)
-- Cloudflare 上一个域名/子域(给命名隧道用)
-- 家里机器装:`cloudflared`、`ffmpeg`、Python 依赖、ACE-Step 权重
+- Cloudflare 账号 + R2 bucket + API token(建 bucket、配公开访问)—— 仅用于存音频,不用买域名
+- Tailscale 账号(免费 Personal 版),常开机器装好并登录;Mac 用开源/CLI 版
+- 家里机器装:`tailscale`、`ffmpeg`、Python 依赖、ACE-Step 权重
 - LLM API key(至少一家)
 - Vercel 账号(连 GitHub 仓库自动部署)
 
@@ -220,7 +224,7 @@ config.py       # 加 R2 / 口令 / CORS 相关配置项
 3. **pipeline overrides + 真实 E2E**(家里机器出 1 首歌验证全链路)
 4. **Next.js 前端**(创作页 + 作品库 + 收藏,深色霓虹打磨)
 5. **认证 + CORS**
-6. **Cloudflare Tunnel + Vercel 部署 + 一键启动脚本**
+6. **Tailscale Funnel + Vercel 部署 + 一键启动脚本**
 
 ## 未决 / 后续
 
