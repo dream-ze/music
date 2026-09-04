@@ -6,3 +6,6 @@ outputs/*
 .env
 .cache/
 *.wav
+
+# brainstorming visual companion
+.superpowers/
