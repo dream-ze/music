@@ -58,3 +58,28 @@ def test_make_song_propagates_llm_options_and_keeps_generating_on_fallback(
     assert result["llm_status"] == [
         "歌曲规划：已回退（模型调用失败）", "歌词整理：已回退（模型调用失败）"
     ]
+
+
+def test_make_song_applies_overrides(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        pipeline.planner.llm, "complete", lambda *a, **k: json.dumps(SAFE_DEFAULT_SPEC)
+    )
+    monkeypatch.setattr(
+        pipeline.lyrics.llm, "complete", lambda *a, **k: "[Verse]\nx"
+    )
+    seen = {}
+    monkeypatch.setattr(
+        pipeline.song_gen, "generate_song",
+        lambda structured, spec, **k: seen.setdefault("spec", spec) or k["out_path"],
+    )
+
+    pipeline.make_song(
+        "词", "随便", work_dir=str(tmp_path),
+        overrides={"genre": ["R&B"], "vocal_gender": "male", "language": "en"},
+    )
+    spec = seen["spec"]
+    assert spec.genre == ["R&B"]
+    assert spec.vocal.gender == "male"
+    assert spec.language == "en"
+    # 未覆盖字段保持 planner 结果
+    assert spec.mood == SAFE_DEFAULT_SPEC["mood"]
