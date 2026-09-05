@@ -12,3 +12,8 @@ outputs/*
 
 # sqlite
 *.db
+
+# web frontend
+web/node_modules
+web/.next
+web/.env.local
