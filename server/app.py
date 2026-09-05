@@ -1,9 +1,27 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
+from server import db
+from server.queue import JobQueue
+from server.routes import router
 
-app = FastAPI(title="ze music API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.init_db()
+    q = JobQueue()
+    q.start()
+    app.state.queue = q
+    try:
+        yield
+    finally:
+        await q.stop()
+
+
+app = FastAPI(title="ze music API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,3 +35,6 @@ app.add_middleware(
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+app.include_router(router)
