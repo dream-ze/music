@@ -61,6 +61,22 @@ def _get_handlers():
     return dit, llm
 
 
+def _fake_song(length: str, out_path: str) -> str:
+    """dev 专用：用 ffmpeg 造一段正弦音代替真出歌(验证下游链路)。"""
+    import subprocess
+
+    dur = 8 if length == "short" else 12
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    cmd = ["ffmpeg", "-y", "-f", "lavfi",
+           "-i", f"sine=frequency=440:duration={dur}", out_path]
+    proc = subprocess.run(cmd, capture_output=True)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"假音频生成失败: {(proc.stderr or b'').decode(errors='ignore')[:200]}"
+        )
+    return out_path
+
+
 def generate_song(structured_lyrics: str, spec: SongSpec, *,
                   length: str = "full", seed: int | None = None, out_path: str) -> str:
     """惰性 import ACE-Step 1.5 并生成歌曲，返回实际产出的音频路径。
@@ -68,7 +84,13 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
     对接 ACE-Step 1.5 官方 Python API（acestep.inference.generate_music）。
     ⚠ 集成点：config.ACESTEP_* 路径为机器相关，需在 Colab 冒烟测试时以实际
     clone/权重下载位置校准；权重首次运行自动下载。
+
+    dev 专用：设 ZE_FAKE_GEN=1 时不跑 ACE-Step，用 ffmpeg 造一段正弦音，
+    用来验证下游链路（MP3/R2/DB/前端播放），不影响真实出歌路径。
     """
+    if os.environ.get("ZE_FAKE_GEN"):
+        return _fake_song(length, out_path)
+
     import config
 
     if config.ACESTEP_PROJECT_ROOT not in sys.path:
