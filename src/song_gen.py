@@ -41,21 +41,23 @@ def _get_handlers():
     from acestep.handler import AceStepHandler
     from acestep.llm_inference import LLMHandler
 
-    device = config.get_device()
+    # 官方示例(run_generate_test.py)对 device 传 "auto" 让其自动探测;
+    # backend 仍按本机探测到的设备选(cuda->vllm, mps->mlx, 其余->pt)。
+    detected = config.get_device()
     dit = AceStepHandler()
     dit.initialize_service(
         project_root=config.ACESTEP_PROJECT_ROOT,
         config_path=config.ACESTEP_CONFIG,
-        device=device,
-        offload_to_cpu=device == "cuda",
+        device="auto",
+        offload_to_cpu=detected == "cuda",
     )
     llm = LLMHandler()
     llm.initialize(
         checkpoint_dir=config.ACESTEP_CHECKPOINT_DIR,
         lm_model_path=config.ACESTEP_LM_MODEL,
-        backend=config.acestep_backend(device),
-        device=device,
-        offload_to_cpu=device == "cuda",
+        backend=config.acestep_backend(detected),
+        device="auto",
+        offload_to_cpu=detected == "cuda",
     )
     _dit_handler, _llm_handler = dit, llm
     return dit, llm
