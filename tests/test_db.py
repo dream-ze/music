@@ -50,3 +50,16 @@ def test_job_lifecycle(tmp_path):
     db.update_job("j1", status="done", song_id="s1", position=0)
     j = db.get_job("j1")
     assert j["status"] == "done" and j["song_id"] == "s1"
+
+
+def test_fail_orphaned_jobs(tmp_path):
+    p = str(tmp_path / "t.db")
+    db.init_db(p)
+    db.create_job("q1", status="queued", position=1, created_by="ze")
+    db.create_job("r1", status="running", position=0, created_by="ze")
+    db.create_job("d1", status="done", position=0, created_by="ze")
+    n = db.fail_orphaned_jobs()
+    assert n == 2  # q1 + r1
+    assert db.get_job("q1")["status"] == "error"
+    assert db.get_job("r1")["status"] == "error"
+    assert db.get_job("d1")["status"] == "done"  # 已完成的不动

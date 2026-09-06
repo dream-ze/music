@@ -12,6 +12,7 @@ from server.routes import router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    db.fail_orphaned_jobs()  # 清理上次重启残留的 queued/running 任务
     q = JobQueue()
     q.start()
     app.state.queue = q

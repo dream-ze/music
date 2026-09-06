@@ -23,7 +23,7 @@ export default function GenerateForm() {
   const [status, setStatus] = useState<Status>("idle")
   const [msg, setMsg] = useState("")
 
-  async function poll(jobId: string) {
+  async function poll(jobId: string, startedAt: number) {
     for (;;) {
       const job = await getJob(jobId)
       if (job.status === "done") {
@@ -37,12 +37,19 @@ export default function GenerateForm() {
         return
       }
       setStatus(job.status)
-      setMsg(job.status === "queued" ? `排队中(第 ${job.position} 位)` : "生成中…")
+      if (job.status === "queued") {
+        const ahead = Math.max(0, (job.position ?? 1) - 1)
+        setMsg(ahead > 0 ? `排队中 · 前面还有 ${ahead} 首（每首约 2-4 分钟）` : "排队中 · 即将开始…")
+      } else {
+        const elapsed = Math.round((Date.now() - startedAt) / 1000)
+        setMsg(`生成中… ${elapsed}s · Mac 出歌约 2-4 分钟，请耐心`)
+      }
       await new Promise((r) => setTimeout(r, 2500))
     }
   }
 
   async function onSubmit() {
+    const startedAt = Date.now()
     setStatus("queued")
     setMsg("提交中…")
     const input: GenerateInput = {
@@ -60,7 +67,7 @@ export default function GenerateForm() {
     }
     try {
       const { job_id } = await generate(input)
-      await poll(job_id)
+      await poll(job_id, startedAt)
     } catch (e) {
       setStatus("error")
       setMsg(e instanceof Error ? e.message : "提交失败")

@@ -105,3 +105,18 @@ def get_job(job_id: str) -> dict | None:
     with _conn() as c:
         row = c.execute("SELECT * FROM jobs WHERE job_id=?", (job_id,)).fetchone()
     return dict(row) if row else None
+
+
+def fail_orphaned_jobs() -> int:
+    """把重启前残留的 queued/running 任务标记为 error。
+
+    进程内队列不持久化,服务重启后这些任务不会再被处理,需在启动时清理,
+    否则前端会一直看到"排队中/生成中"卡死。返回被清理的任务数。
+    """
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE jobs SET status='error', position=0, "
+            "error='服务重启,任务已中断,请重新生成' "
+            "WHERE status IN ('queued','running')"
+        )
+        return cur.rowcount
