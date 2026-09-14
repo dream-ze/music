@@ -63,3 +63,38 @@ def test_fail_orphaned_jobs(tmp_path):
     assert db.get_job("q1")["status"] == "error"
     assert db.get_job("r1")["status"] == "error"
     assert db.get_job("d1")["status"] == "done"  # 已完成的不动
+
+
+# ── llm_status:把"降级生成"落库,让前端能把它跟正常出的歌区分开 ────────
+
+_OLD_SONGS_SCHEMA = """
+CREATE TABLE songs (
+  id TEXT PRIMARY KEY, title TEXT, lyrics TEXT, feeling TEXT,
+  spec_json TEXT, structured_lyrics TEXT, seed INTEGER,
+  mp3_url TEXT, duration_sec REAL, instrumental INTEGER DEFAULT 0,
+  created_by TEXT, favorite INTEGER DEFAULT 0, created_at TEXT
+);
+"""
+
+
+def test_insert_and_get_song_keeps_llm_status(tmp_path):
+    p = str(tmp_path / "t.db")
+    db.init_db(p)
+    status = '[{"stage": "歌词整理", "ok": false}]'
+    db.insert_song(_song(llm_status=status))
+    assert db.get_song("s1")["llm_status"] == status
+
+
+def test_init_db_migrates_existing_table_without_llm_status(tmp_path):
+    """老库里 songs 表已存在且没有 llm_status 列,启动时必须补列而不是崩掉。"""
+    import sqlite3
+
+    p = str(tmp_path / "old.db")
+    with sqlite3.connect(p) as c:
+        c.executescript(_OLD_SONGS_SCHEMA)
+
+    db.init_db(p)
+
+    with sqlite3.connect(p) as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(songs)")}
+    assert "llm_status" in cols

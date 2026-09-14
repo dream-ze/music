@@ -4,6 +4,18 @@ import { toggleFavorite } from "@/lib/api"
 import { formatDuration } from "@/lib/format"
 import type { Song } from "@/lib/types"
 
+/** 从 llm_status 里挑出回退的阶段名。字段缺失或格式坏都当作"没有降级"。 */
+function degradedStages(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const events = JSON.parse(raw)
+    if (!Array.isArray(events)) return []
+    return events.filter((e) => e && e.ok === false).map((e) => String(e.stage))
+  } catch {
+    return []
+  }
+}
+
 export default function SongCard({
   song,
   onPlay,
@@ -12,6 +24,7 @@ export default function SongCard({
   onPlay: (s: Song) => void
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
+  const degraded = degradedStages(song.llm_status)
   return (
     <div
       className="bg-panel"
@@ -21,7 +34,7 @@ export default function SongCard({
         style={{
           height: 120,
           position: "relative",
-          background: "linear-gradient(135deg,#7b4bff,#4b7cff)",
+          background: "linear-gradient(160deg,#8fc4ec,#dfeefb 55%,#a9c8e4)",
         }}
       >
         <button
@@ -36,8 +49,8 @@ export default function SongCard({
             height: 24,
             borderRadius: "50%",
             cursor: "pointer",
-            background: "rgba(0,0,0,.35)",
-            color: fav ? "#ff7ac0" : "#fff",
+            background: "rgba(255,255,255,.72)",
+            color: fav ? "#e0518c" : "#14263c",
           }}
         >
           {fav ? "♥" : "♡"}
@@ -54,15 +67,39 @@ export default function SongCard({
             height: 34,
             borderRadius: "50%",
             cursor: "pointer",
-            background: "rgba(255,255,255,.92)",
-            color: "#3a1a6b",
+            background: "rgba(255,255,255,.95)",
+            color: "#14263c",
           }}
         >
           ▶
         </button>
       </div>
       <div style={{ padding: "11px 12px" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 5 }}>{song.title}</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 5,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{song.title}</div>
+          {degraded.length > 0 && (
+            <span
+              title={`${degraded.join("、")}已回退，这首歌是降级生成的`}
+              style={{
+                fontSize: 9.5,
+                padding: "1px 5px",
+                borderRadius: 5,
+                background: "rgba(192,57,43,.12)",
+                color: "var(--danger)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              降级
+            </span>
+          )}
+        </div>
         <div className="text-muted" style={{ fontSize: 10.5, marginBottom: 7 }}>
           {song.feeling}
         </div>

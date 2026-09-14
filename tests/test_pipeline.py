@@ -31,8 +31,9 @@ def test_make_song_orchestrates(monkeypatch, tmp_path):
     assert "[Verse]" in captured["lyrics"]
     assert isinstance(captured["spec"], SongSpec)
     assert result["llm_status"] == [
-        "歌曲规划：模型调用成功", "歌词整理：模型调用成功"
+        {"stage": "歌曲规划", "ok": True}, {"stage": "歌词整理", "ok": True}
     ]
+    assert result["degraded"] is False
 
 
 def test_make_song_propagates_llm_options_and_keeps_generating_on_fallback(
@@ -56,8 +57,9 @@ def test_make_song_propagates_llm_options_and_keeps_generating_on_fallback(
     assert len(calls) == 2
     assert all(call["provider"] == "gemini" for call in calls)
     assert result["llm_status"] == [
-        "歌曲规划：已回退（模型调用失败）", "歌词整理：已回退（模型调用失败）"
+        {"stage": "歌曲规划", "ok": False}, {"stage": "歌词整理", "ok": False}
     ]
+    assert result["degraded"] is True
 
 
 def test_make_song_applies_overrides(monkeypatch, tmp_path):
@@ -83,3 +85,36 @@ def test_make_song_applies_overrides(monkeypatch, tmp_path):
     assert spec.language == "en"
     # 未覆盖字段保持 planner 结果
     assert spec.mood == SAFE_DEFAULT_SPEC["mood"]
+
+
+def test_make_song_uses_configured_provider_by_default(monkeypatch, tmp_path):
+    """调用方没指定供应商时,走 config.LLM_PROVIDER —— 否则 provider 写死在
+    llm.complete 的默认参数里,API 链路上没有任何入口能换掉它。"""
+    monkeypatch.setattr(pipeline.config, "LLM_PROVIDER", "deepseek")
+    seen = []
+    monkeypatch.setattr(pipeline.planner.llm, "complete",
+                        lambda *a, **k: seen.append(k) or json.dumps(SAFE_DEFAULT_SPEC))
+    monkeypatch.setattr(pipeline.lyrics.llm, "complete",
+                        lambda *a, **k: seen.append(k) or "[Verse]\nx")
+    monkeypatch.setattr(pipeline.song_gen, "generate_song",
+                        lambda structured, spec, **k: k["out_path"])
+
+    pipeline.make_song("词", "感觉", work_dir=str(tmp_path))
+
+    assert [k.get("provider") for k in seen] == ["deepseek", "deepseek"]
+
+
+def test_explicit_llm_options_override_configured_provider(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline.config, "LLM_PROVIDER", "deepseek")
+    seen = []
+    monkeypatch.setattr(pipeline.planner.llm, "complete",
+                        lambda *a, **k: seen.append(k) or json.dumps(SAFE_DEFAULT_SPEC))
+    monkeypatch.setattr(pipeline.lyrics.llm, "complete",
+                        lambda *a, **k: seen.append(k) or "[Verse]\nx")
+    monkeypatch.setattr(pipeline.song_gen, "generate_song",
+                        lambda structured, spec, **k: k["out_path"])
+
+    pipeline.make_song("词", "感觉", work_dir=str(tmp_path),
+                       llm_options={"provider": "gemini"})
+
+    assert [k.get("provider") for k in seen] == ["gemini", "gemini"]

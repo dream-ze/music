@@ -23,7 +23,8 @@ def init_db(path: str | None = None) -> None:
               id TEXT PRIMARY KEY, title TEXT, lyrics TEXT, feeling TEXT,
               spec_json TEXT, structured_lyrics TEXT, seed INTEGER,
               mp3_url TEXT, duration_sec REAL, instrumental INTEGER DEFAULT 0,
-              created_by TEXT, favorite INTEGER DEFAULT 0, created_at TEXT
+              created_by TEXT, favorite INTEGER DEFAULT 0, created_at TEXT,
+              llm_status TEXT
             );
             CREATE TABLE IF NOT EXISTS jobs (
               job_id TEXT PRIMARY KEY, status TEXT, position INTEGER,
@@ -31,6 +32,14 @@ def init_db(path: str | None = None) -> None:
             );
             """
         )
+        _migrate(c)
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    """给已存在的老表补新列。CREATE TABLE IF NOT EXISTS 不会改已有表结构。"""
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(songs)")}
+    if "llm_status" not in cols:
+        c.execute("ALTER TABLE songs ADD COLUMN llm_status TEXT")
 
 
 def _now() -> str:
@@ -39,7 +48,8 @@ def _now() -> str:
 
 def insert_song(song: dict) -> None:
     cols = ["id", "title", "lyrics", "feeling", "spec_json", "structured_lyrics",
-            "seed", "mp3_url", "duration_sec", "instrumental", "created_by"]
+            "seed", "mp3_url", "duration_sec", "instrumental", "created_by",
+            "llm_status"]
     vals = [song.get(k) for k in cols]
     with _conn() as c:
         c.execute(

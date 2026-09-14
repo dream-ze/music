@@ -25,7 +25,10 @@ def make_song(raw_lyrics: str, style_desc: str, *,
     out_dir = work_dir or config.OUTPUTS_DIR
     os.makedirs(out_dir, exist_ok=True)
 
-    llm_status: list[str] = []
+    # 调用方没指定供应商时用配置值(而不是 llm.complete 签名里的默认值)。
+    llm_options = {"provider": config.LLM_PROVIDER, **(llm_options or {})}
+
+    llm_status: list[dict] = []
     spec = planner.plan_song(
         style_desc, lyrics_hint=raw_lyrics[:80],
         llm_options=llm_options, status_events=llm_status,
@@ -44,4 +47,6 @@ def make_song(raw_lyrics: str, style_desc: str, *,
         "structured_lyrics": structured,
         "song": song_path,
         "llm_status": llm_status,
+        # 任一阶段回退即为降级生成 —— 由事件的 ok 位判定,不靠文案匹配。
+        "degraded": any(not e["ok"] for e in llm_status),
     }

@@ -12,6 +12,8 @@ export interface Song {
   created_by: string
   favorite: number
   created_at: string
+  /** JSON 字符串:[{stage, ok}]。老歌为空 —— 那时还没有这个字段。 */
+  llm_status?: string | null
 }
 
 export interface Job {

@@ -1,3 +1,4 @@
+import json
 import asyncio
 from server import queue
 
@@ -10,7 +11,8 @@ class _FakeSpec:
 def test_run_generation_orchestrates(monkeypatch, tmp_path):
     monkeypatch.setattr(queue.pipeline, "make_song",
         lambda *a, **k: {"song": str(tmp_path / "song.wav"),
-                          "spec": _FakeSpec(), "structured_lyrics": "[Verse]\nx"})
+                          "spec": _FakeSpec(), "structured_lyrics": "[Verse]\nx",
+                          "llm_status": [], "degraded": False})
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 200.0)
     monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
@@ -58,3 +60,25 @@ def test_worker_marks_done(monkeypatch):
     jid = asyncio.run(go())
     statuses = [f.get("status") for _, f in updates]
     assert "running" in statuses and "done" in statuses
+
+
+def test_run_generation_persists_llm_status(monkeypatch, tmp_path):
+    """降级生成必须在库里留痕,否则前端无法把它跟正常出的歌区分开。"""
+    events = [{"stage": "歌曲规划", "ok": False}, {"stage": "歌词整理", "ok": True}]
+    monkeypatch.setattr(queue.pipeline, "make_song",
+        lambda *a, **k: {"song": str(tmp_path / "song.wav"),
+                          "spec": _FakeSpec(), "structured_lyrics": "[Verse]\nx",
+                          "llm_status": events, "degraded": True})
+    monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
+    monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 200.0)
+    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
+    saved = {}
+    monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
+
+    song = queue.run_generation("j1", {
+        "lyrics": "词", "feeling": "女声", "length": "full",
+        "seed": None, "instrumental": False, "overrides": {},
+    }, "ze")
+
+    assert json.loads(saved["llm_status"]) == events
+    assert json.loads(song["llm_status"]) == events

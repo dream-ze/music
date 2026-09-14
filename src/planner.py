@@ -31,7 +31,7 @@ def plan_song(
     lyrics_hint: str = "",
     *,
     llm_options: dict | None = None,
-    status_events: list[str] | None = None,
+    status_events: list[dict] | None = None,
 ) -> SongSpec:
     hint = f"歌词片段参考：{lyrics_hint}" if lyrics_hint else ""
     prompt = _TEMPLATE.format(style=style_desc, hint=hint)
@@ -39,10 +39,10 @@ def plan_song(
         raw = llm.complete(prompt, system=_SYSTEM, **(llm_options or {}))
         result = parse_spec(_extract_json(raw))
         if status_events is not None:
-            status_events.append("歌曲规划：模型调用成功")
+            status_events.append({"stage": "歌曲规划", "ok": True})
         return result
     except Exception as e:
         logging.warning("planner LLM failed, using safe default: %s", e)
         if status_events is not None:
-            status_events.append("歌曲规划：已回退（模型调用失败）")
+            status_events.append({"stage": "歌曲规划", "ok": False})
         return safe_spec()

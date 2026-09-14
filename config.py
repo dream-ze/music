@@ -5,6 +5,9 @@ OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-haiku-4-5-20251001")
+# 文本模型供应商。换供应商只需改环境变量 —— 此前 provider 写死在
+# llm.complete 的默认参数里,API 链路上没有任何入口能换掉它。
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
 
 LLM_PROVIDERS = {
     "deepseek": {
@@ -56,16 +59,39 @@ ACESTEP_CHECKPOINT_DIR = os.environ.get(
     "ACESTEP_CHECKPOINT_DIR", os.path.join(ACESTEP_PROJECT_ROOT, "checkpoints")
 )
 ACESTEP_CONFIG = os.environ.get("ACESTEP_CONFIG", "acestep-v15-turbo")
-ACESTEP_LM_MODEL = os.environ.get("ACESTEP_LM_MODEL", "acestep-5Hz-lm-0.6B")
+# 官方 DEFAULT_LM_MODEL 就是 1.7B(acestep/model_downloader.py)。曾经写死 0.6B —— 
+# 一个没下载的目录,LLMHandler.initialize() 只返回 (错误消息, False) 不抛异常,
+# 于是 5Hz LM 静默不启动,thinking/CoT 全程没跑。
+ACESTEP_LM_MODEL = os.environ.get("ACESTEP_LM_MODEL", "acestep-5Hz-lm-1.7B")
 
 
 def acestep_backend(device: str) -> str:
-    """按设备选择 5Hz 语言模型后端。
+    """按设备选择 5Hz 语言模型后端。可用 ACESTEP_LM_BACKEND 覆盖。
 
     本项目默认面向 8GB 显存设备；ACE-Step 官方建议这一档在 Windows
     使用 PyTorch 后端，避免 vLLM 与 DiT 同时常驻导致显存不足。
+
+    ⚠ MLX 后端会跳过 CPU offload(llm_inference._load_model_context 对
+    mlx/vllm 直接 yield)。内存不够时设 ACESTEP_LM_BACKEND=pt,用速度换回
+    offload 能力。
     """
+    override = os.environ.get("ACESTEP_LM_BACKEND", "").strip()
+    if override:
+        return override
     return "mlx" if device == "mps" else "pt"
+
+
+def acestep_offload(device: str) -> bool:
+    """是否让 ACE-Step 一次只把一个模型搬上加速器。ACESTEP_OFFLOAD=1/0 可覆盖。
+
+    mps 也要开：统一内存要跟整个系统共享，实测 turbo + 1.7B LM 同时常驻
+    会直接 MPS OOM（11.74 GiB + 10.3 GiB > 20.13 GiB 上限，机器共 16GB）。
+    代价是 CPU↔加速器之间反复搬运，明显变慢。
+    """
+    override = os.environ.get("ACESTEP_OFFLOAD", "").strip()
+    if override:
+        return override not in {"0", "false", "False", "no"}
+    return device in {"cuda", "mps"}
 
 
 def get_device() -> str:

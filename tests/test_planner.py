@@ -58,7 +58,7 @@ def test_plan_song_passes_llm_options_and_reports_status(monkeypatch):
     )
     assert captured["provider"] == "deepseek"
     assert captured["model"] == "custom"
-    assert events == ["歌曲规划：模型调用成功"]
+    assert events == [{"stage": "歌曲规划", "ok": True}]
 
 
 def test_plan_song_falls_back_on_invalid_spec(monkeypatch):

@@ -43,22 +43,31 @@ def _get_handlers():
 
     # 官方示例(run_generate_test.py)对 device 传 "auto" 让其自动探测;
     # backend 仍按本机探测到的设备选(cuda->vllm, mps->mlx, 其余->pt)。
+    # 两个 initialize 都返回 (消息, 是否成功) 而不是抛异常。返回值必须检查:
+    # 丢掉它们会让 5Hz LM 静默不启动(日志里只留一行 llm_initialized=False),
+    # 出歌看起来照常"成功",但实际是没有 CoT 规划的裸 DiT。
     detected = config.get_device()
+    offload = config.acestep_offload(detected)
     dit = AceStepHandler()
-    dit.initialize_service(
+    msg, ok = dit.initialize_service(
         project_root=config.ACESTEP_PROJECT_ROOT,
         config_path=config.ACESTEP_CONFIG,
         device="auto",
-        offload_to_cpu=detected == "cuda",
+        offload_to_cpu=offload,
     )
+    if not ok:
+        raise RuntimeError(f"ACE-Step DiT 初始化失败: {msg}")
     llm = LLMHandler()
-    llm.initialize(
+    msg, ok = llm.initialize(
         checkpoint_dir=config.ACESTEP_CHECKPOINT_DIR,
         lm_model_path=config.ACESTEP_LM_MODEL,
         backend=config.acestep_backend(detected),
         device="auto",
-        offload_to_cpu=detected == "cuda",
+        offload_to_cpu=offload,
     )
+    if not ok:
+        raise RuntimeError(f"ACE-Step 5Hz LM 初始化失败: {msg}")
+    # 只有两者都成功才写全局,否则坏 handler 会被缓存并一直复用。
     _dit_handler, _llm_handler = dit, llm
     return dit, llm
 
