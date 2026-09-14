@@ -79,13 +79,13 @@ export default function PasscodeGate({ children }: { children: React.ReactNode }
             width: "100%",
             padding: 10,
             borderRadius: 8,
-            background: "var(--bg)",
+            background: "var(--field)",
             border: "1px solid var(--line)",
             color: "var(--ink)",
           }}
         />
         {err && (
-          <p style={{ color: "#ff7a8a", fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+          <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 8, marginBottom: 0 }}>
             {err}
           </p>
         )}

@@ -26,8 +26,8 @@ export default function AdvancedSettings({
       cursor: "pointer",
       fontSize: 12,
       border: on ? "1px solid var(--brand)" : "1px solid var(--line)",
-      background: on ? "rgba(176,107,255,.16)" : "rgba(255,255,255,.05)",
-      color: on ? "#fff" : "var(--muted)",
+      background: on ? "rgba(47,107,216,.16)" : "rgba(255,255,255,.55)",
+      color: on ? "var(--brand)" : "var(--muted)",
     }) as const
   const toggle = (arr: string[], v: string) =>
     arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]

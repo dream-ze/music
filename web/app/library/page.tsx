@@ -23,8 +23,8 @@ export default function Library() {
       borderRadius: 8,
       border: "none",
       cursor: "pointer",
-      background: on ? "rgba(176,107,255,.16)" : "rgba(255,255,255,.05)",
-      color: on ? "#fff" : "var(--muted)",
+      background: on ? "rgba(47,107,216,.16)" : "rgba(255,255,255,.55)",
+      color: on ? "var(--brand)" : "var(--muted)",
     }) as const
 
   return (
@@ -40,7 +40,7 @@ export default function Library() {
           placeholder="🔍 搜索歌名、风格、歌词"
           style={{
             flex: 1,
-            background: "var(--panel)",
+            background: "var(--field)",
             color: "var(--ink)",
             border: "1px solid var(--line)",
             borderRadius: 9,

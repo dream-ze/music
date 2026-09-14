@@ -11,18 +11,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh">
       <body>
-        <PasscodeGate>
-          <PlayerProvider>
-            <Nav />
-            <div style={{ display: "flex", minHeight: "calc(100vh - 59px)" }}>
-              <Sidebar />
-              <main style={{ flex: 1, padding: "22px 24px", paddingBottom: 90 }}>
-                {children}
-              </main>
-            </div>
-            <Player />
-          </PlayerProvider>
-        </PasscodeGate>
+        <div className="snow-bg" aria-hidden />
+        <div className="app-shell">
+          <PasscodeGate>
+            <PlayerProvider>
+              <Nav />
+              <div style={{ display: "flex", minHeight: "calc(100vh - 59px)" }}>
+                <Sidebar />
+                <main style={{ flex: 1, padding: "22px 24px", paddingBottom: 90 }}>
+                  {children}
+                </main>
+              </div>
+              <Player />
+            </PlayerProvider>
+          </PasscodeGate>
+        </div>
       </body>
     </html>
   )

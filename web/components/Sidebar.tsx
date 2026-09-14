@@ -12,8 +12,10 @@ export default function Sidebar() {
       style={{
         width: 170,
         padding: "18px 12px",
-        borderRight: "1px solid var(--line)",
-        background: "#0b0817",
+        borderRight: "1px solid rgba(255,255,255,.5)",
+        background: "rgba(255,255,255,.42)",
+        backdropFilter: "blur(16px) saturate(1.1)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.1)",
       }}
     >
       {items.map((it) => (

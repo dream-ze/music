@@ -2,14 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── 冰雪主题 ─────────────────────────────────────────────
+   背景 = 阳光下的雪面(蓝白 + 细碎反光)。
+   若 public/bg.jpg 存在则用真实照片, 否则自动回退到下面的 CSS 雪面。
+   ──────────────────────────────────────────────────────── */
 :root {
-  --bg: #0c0a16;
-  --panel: #131024;
-  --ink: #e9e6f5;
-  --muted: #8f8aad;
-  --brand: #b06bff;
-  --brand2: #5c7cff;
-  --line: rgba(255, 255, 255, 0.07);
+  --bg: #d8e5f2;
+  --panel: rgba(255, 255, 255, 0.68);
+  --field: rgba(255, 255, 255, 0.82);
+  --ink: #14263c;
+  --muted: #55708f;
+  --brand: #2f6bd8;
+  --brand2: #62aee6;
+  --line: rgba(20, 45, 80, 0.14);
+  --danger: #c0392b;
 }
 
 html,
@@ -21,10 +27,135 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, "PingFang SC", sans-serif;
 }
+
+/* 背景与内容各占一层:.snow-bg(z-index 0) 在下, .app-shell(z-index 1) 在上。
+   两者都是定位元素, 不依赖负 z-index, 所以 body 可以保留自己的不透明底色兜底。 */
+.app-shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* 背景底层:照片(有则用) + 雪面(蓝影 / 亮脊 / 风吹的雪脊走向) */
+.snow-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #c3d5e8;
+  background-image:
+    url("/bg.jpg"),
+    linear-gradient(
+      172deg,
+      rgba(92, 124, 163, 0.42) 0%,
+      rgba(92, 124, 163, 0.06) 20%,
+      rgba(92, 124, 163, 0) 46%,
+      rgba(92, 124, 163, 0.3) 72%,
+      rgba(92, 124, 163, 0) 100%
+    ),
+    linear-gradient(
+      96deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.55) 20%,
+      rgba(255, 255, 255, 0) 38%,
+      rgba(255, 255, 255, 0) 58%,
+      rgba(255, 255, 255, 0.5) 76%,
+      rgba(255, 255, 255, 0) 94%
+    ),
+    linear-gradient(
+      168deg,
+      #9db5d2 0%,
+      #bccfe4 16%,
+      #edf4fb 34%,
+      #a9c1db 50%,
+      #e2edf7 66%,
+      #b2c8e0 82%,
+      #eaf2fa 100%
+    );
+  background-size: cover, cover, cover, cover;
+  background-position: center center, center, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+/* 背景上层:雪粒反光(细碎高光) */
+.snow-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 24px 38px, #fff 0 1.3px, rgba(255, 255, 255, 0.45) 1.3px 2.6px, transparent 3px),
+    radial-gradient(circle at 96px 14px, #fff 0 0.9px, rgba(255, 255, 255, 0.4) 0.9px 2px, transparent 2.4px),
+    radial-gradient(circle at 52px 118px, #fff 0 1.6px, rgba(255, 255, 255, 0.45) 1.6px 3.2px, transparent 3.6px),
+    radial-gradient(circle at 150px 62px, #fff 0 1px, rgba(255, 255, 255, 0.4) 1px 2.2px, transparent 2.6px),
+    radial-gradient(circle at 18px 82px, #eaf4ff 0 1.2px, rgba(234, 244, 255, 0.4) 1.2px 2.4px, transparent 2.8px),
+    radial-gradient(circle at 122px 156px, #fff 0 1.1px, rgba(255, 255, 255, 0.4) 1.1px 2.3px, transparent 2.7px),
+    radial-gradient(circle at 70px 46px, #fff 0 0.8px, transparent 1.6px),
+    radial-gradient(circle at 196px 124px, #fff 0 1.4px, rgba(255, 255, 255, 0.4) 1.4px 2.8px, transparent 3.2px),
+    linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.1));
+  background-size:
+    187px 187px, 143px 143px, 239px 239px, 173px 173px, 127px 127px, 263px 263px,
+    101px 101px, 311px 311px, cover;
+  /* 反光只出现在被风吹亮的雪脊上, 和下层亮带走向一致 */
+  -webkit-mask-image: linear-gradient(
+    96deg,
+    rgba(0, 0, 0, 0.15) 0%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 0.2) 38%,
+    rgba(0, 0, 0, 0.25) 58%,
+    rgba(0, 0, 0, 1) 76%,
+    rgba(0, 0, 0, 0.15) 94%
+  );
+  mask-image: linear-gradient(
+    96deg,
+    rgba(0, 0, 0, 0.15) 0%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 0.2) 38%,
+    rgba(0, 0, 0, 0.25) 58%,
+    rgba(0, 0, 0, 1) 76%,
+    rgba(0, 0, 0, 0.15) 94%
+  );
+  animation: snow-twinkle 7s ease-in-out infinite;
+}
+@keyframes snow-twinkle {
+  0%,
+  100% {
+    opacity: 0.82;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snow-bg::after {
+    animation: none;
+  }
+}
+
+/* 面板:磨砂玻璃 */
+.bg-panel {
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 10px 30px rgba(24, 55, 95, 0.1);
+}
+.glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+}
+
 .text-muted {
   color: var(--muted);
 }
 .glow-btn {
   background: linear-gradient(90deg, var(--brand), var(--brand2));
-  box-shadow: 0 8px 26px rgba(140, 75, 255, 0.4);
+  box-shadow: 0 8px 26px rgba(47, 107, 216, 0.35);
+}
+
+input,
+textarea {
+  outline: none;
+}
+input::placeholder,
+textarea::placeholder {
+  color: rgba(85, 112, 143, 0.75);
 }

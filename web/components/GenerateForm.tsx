@@ -86,7 +86,7 @@ export default function GenerateForm() {
           rows={10}
           style={{
             width: "100%",
-            background: "var(--bg)",
+            background: "var(--field)",
             color: "var(--ink)",
             border: "1px solid var(--line)",
             borderRadius: 10,
@@ -102,7 +102,7 @@ export default function GenerateForm() {
           placeholder="女声，R&B，深夜，温柔"
           style={{
             width: "100%",
-            background: "var(--bg)",
+            background: "var(--field)",
             color: "var(--ink)",
             border: "1px solid var(--brand)",
             borderRadius: 10,
@@ -131,7 +131,7 @@ export default function GenerateForm() {
           {busy ? msg : "✦ 生成我的歌曲"}
         </button>
         {status === "error" && (
-          <p style={{ color: "#ff7a8a", fontSize: 12, marginTop: 8 }}>{msg}</p>
+          <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{msg}</p>
         )}
       </div>
       <div style={{ flex: 0.85 }}>

@@ -16,8 +16,10 @@ export default function Player() {
         alignItems: "center",
         gap: 16,
         padding: "12px 22px",
-        background: "#0e0b1c",
-        borderTop: "1px solid var(--line)",
+        background: "rgba(255,255,255,.62)",
+        backdropFilter: "blur(18px) saturate(1.1)",
+        WebkitBackdropFilter: "blur(18px) saturate(1.1)",
+        borderTop: "1px solid rgba(255,255,255,.6)",
       }}
     >
       <div
@@ -25,7 +27,7 @@ export default function Player() {
           width: 34,
           height: 34,
           borderRadius: 7,
-          background: "linear-gradient(135deg,#7b4bff,#4b7cff)",
+          background: "linear-gradient(135deg,#2f6bd8,#8fd0f5)",
         }}
       />
       <div style={{ minWidth: 120 }}>

@@ -7,7 +7,7 @@ export default function Home() {
         用{" "}
         <span
           style={{
-            background: "linear-gradient(90deg,#c07bff,#6c8cff)",
+            background: "linear-gradient(90deg,#2f6bd8,#62aee6)",
             WebkitBackgroundClip: "text",
             backgroundClip: "text",
             color: "transparent",

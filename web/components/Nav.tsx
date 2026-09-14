@@ -14,15 +14,20 @@ export default function Nav() {
         alignItems: "center",
         gap: 26,
         padding: "14px 22px",
-        borderBottom: "1px solid var(--line)",
-        background: "#0e0b1c",
+        borderBottom: "1px solid rgba(255,255,255,.55)",
+        background: "rgba(255,255,255,.55)",
+        backdropFilter: "blur(16px) saturate(1.1)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.1)",
+        position: "sticky",
+        top: 0,
+        zIndex: 20,
       }}
     >
       <div style={{ fontWeight: 800, fontSize: 16 }}>
         🎵{" "}
         <span
           style={{
-            background: "linear-gradient(90deg,#b06bff,#5c7cff)",
+            background: "linear-gradient(90deg,#2f6bd8,#62aee6)",
             WebkitBackgroundClip: "text",
             backgroundClip: "text",
             color: "transparent",
@@ -49,7 +54,7 @@ export default function Nav() {
           width: 30,
           height: 30,
           borderRadius: "50%",
-          background: "linear-gradient(135deg,#b06bff,#5c7cff)",
+          background: "linear-gradient(135deg,#2f6bd8,#8fd0f5)",
         }}
       />
     </header>
