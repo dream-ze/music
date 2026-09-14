@@ -160,7 +160,7 @@ planner 可能输出 `zh-en`、`Chinese` 等。归一化函数 `normalize_langua
 
 **结构标签**：
 - 用户歌词已有单独成行的 `[...]` → 全部保留，不增不删；
-- 没有 → 按 `Preset.structure` 顺序为各段补标签（段以空行分隔；段数少于结构长度时按顺序取前 N 个，多于则最后一个标签复用）；
+- 没有 → 按 `Preset.structure` 顺序为各段补标签（段以空行分隔；段数少于结构长度时按顺序取前 N 个，多于则最后一个标签复用）；分配时跳过 Intro / Outro / Instrumental（通常无人声）；
 - `Preset.vocal_qualifier` 非空时，对**无 `-` 限定词的 `[Verse…]` 标签**改写为 `[Verse - <qualifier>]`；`[Hook]`/`[Chorus]` 不动（官方警告勿堆叠标记）。
 
 事件：`{"stage": "歌词整理", "ok": bool, "reason": <"llm_error" | "empty" | "text_changed" | None>}`；`ok=False` 时仍输出确定性回退结果（可用，但被标记降级）。
