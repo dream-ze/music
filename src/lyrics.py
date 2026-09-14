@@ -1,52 +1,74 @@
+"""歌词整理:只调整换行、不改字。LLM 负责断行,确定性校验兜底。"""
 import logging
-import re
 
 from src import llm
+from src.lyric_text import apply_structure_tags, same_text, split_long_lines
+from src.presets import Preset, get_preset
 from src.spec import SongSpec
 
-_SYSTEM = "你是作词编辑。把用户歌词按给定歌曲结构分段，用 [Verse]/[Chorus] 等标签标注，保留原词，不要新增大量歌词。"
+_SYSTEM = (
+    "你是作词编辑。你的唯一任务是调整歌词的换行位置。"
+    "绝对不可以增加、删除或修改任何一个字、标点或英文单词;只能移动换行。"
+    "保留所有单独成行的 [标签] 行和段落之间的空行。只输出歌词文本,不要解释。"
+)
+
+_TEMPLATE = """断行规则:
+- 每行 {min_s}-{max_s} 个音节(一个汉字算 1 个音节,英文按单词音节数)
+- 同一段里位置相同的行音节数尽量接近(相差不超过 {tol})
+- 不改字、不改标点、不改顺序;只移动换行
+- 已有的 [标签] 行和段间空行原样保留
+
+歌词:
+{lyrics}"""
 
 
-# 单独成行的 [xxx] 才算结构标记;行内的方括号(如歌词里的括号和声)不算。
-_TAG_LINE = re.compile(r"^\s*\[[^\]]+\]\s*$", re.MULTILINE)
+def _ask(text: str, preset: Preset, llm_options: dict | None) -> str:
+    r = preset.lyric_rules
+    prompt = _TEMPLATE.format(min_s=r.min_syllables, max_s=r.max_syllables,
+                              tol=r.tolerance, lyrics=text)
+    return llm.complete(prompt, system=_SYSTEM, **(llm_options or {})) or ""
 
 
-def _fallback(raw_lyrics: str) -> str:
-    """LLM 不可用时的兜底分段。
-
-    已经带结构标记的歌词原样透传:再包一层会让标记重复、整段歌词被复制,
-    还会塞进一个跟用户自己的 [Hook] 互相矛盾的 [Chorus]。官方文档要求
-    标记不堆叠、Caption 与 Lyrics 不冲突。
-    """
-    body = raw_lyrics.strip() or "……"
-    if _TAG_LINE.search(body):
-        return body
-    return f"[Verse]\n{body}\n\n[Chorus]\n{body}"
+def _emit(events: list[dict] | None, ok: bool, reason: str | None) -> None:
+    if events is None:
+        return
+    ev: dict = {"stage": "歌词整理", "ok": ok}
+    if not ok:
+        ev["reason"] = reason
+    events.append(ev)
 
 
 def structure_lyrics(
     raw_lyrics: str,
     spec: SongSpec,
     *,
+    preset: Preset | None = None,
     llm_options: dict | None = None,
     status_events: list[dict] | None = None,
 ) -> str:
-    structure = " / ".join(spec.structure)
-    prompt = (
-        f"歌曲结构：{structure}\n"
-        f"请按此结构给下面的歌词分段并加标签：\n{raw_lyrics}"
-    )
+    preset = preset or get_preset(spec.preset_id)
+    rules = preset.lyric_rules
+    base = raw_lyrics.strip() or "……"
+
+    ok, reason, text = True, None, None
     try:
-        out = llm.complete(prompt, system=_SYSTEM, **(llm_options or {}))
-        if out and "[" in out:
-            if status_events is not None:
-                status_events.append({"stage": "歌词整理", "ok": True})
-            return out.strip()
-        if status_events is not None:
-            status_events.append({"stage": "歌词整理", "ok": False})
-        return _fallback(raw_lyrics)
-    except Exception as e:
-        logging.warning("lyrics LLM failed, using fallback: %s", e)
-        if status_events is not None:
-            status_events.append({"stage": "歌词整理", "ok": False})
-        return _fallback(raw_lyrics)
+        out = _ask(base, preset, llm_options)
+        if not out.strip():
+            out = _ask(base, preset, llm_options)  # 空响应重试一次
+        if not out.strip():
+            ok, reason = False, "empty"
+        elif not same_text(base, out):
+            ok, reason = False, "text_changed"    # LLM 改了字:整份丢弃
+        else:
+            text = out.strip()
+    except Exception as e:  # noqa: BLE001 — 事件里不带异常原文(可能含 key)
+        logging.warning("lyrics LLM failed, using deterministic split: %s", e)
+        ok, reason = False, "llm_error"
+
+    if text is None:
+        text = base
+    # 无论 LLM 路径还是回退,都再做一次确定性切分:对合规文本是幂等的
+    text = split_long_lines(text, rules.max_syllables, rules.tolerance)
+    text = apply_structure_tags(text, spec.structure or preset.structure, preset.vocal_qualifier)
+    _emit(status_events, ok, reason)
+    return text
