@@ -63,3 +63,45 @@ def test_generate_requires_passcode(monkeypatch, tmp_path):
 def test_inspirations():
     r = client.get("/api/inspirations")
     assert len(r.json()["inspirations"]) >= 3
+
+
+def _with_fake_queue(monkeypatch, tmp_path, name):
+    from server import db
+    db.init_db(str(tmp_path / name))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    captured = {}
+
+    class FakeQ:
+        async def enqueue(self, payload, created_by):
+            captured.update(payload)
+            db.create_job("jP", status="queued", position=1, created_by=created_by)
+            return "jP"
+    appmod.app.state.queue = FakeQ()
+    return captured
+
+
+def _body(**over):
+    base = {"lyrics": "词", "feeling": "说唱", "length": "short", "seed": None,
+            "instrumental": False, "overrides": {}}
+    base.update(over)
+    return base
+
+
+def test_generate_accepts_known_preset_and_forwards_it(monkeypatch, tmp_path):
+    captured = _with_fake_queue(monkeypatch, tmp_path, "p1.db")
+    r = client.post("/api/generate", json=_body(overrides={"preset": "hiphop.trap"}))
+    assert r.status_code == 200
+    assert captured["overrides"]["preset"] == "hiphop.trap"
+
+
+def test_generate_rejects_unknown_preset_with_422(monkeypatch, tmp_path):
+    _with_fake_queue(monkeypatch, tmp_path, "p2.db")
+    r = client.post("/api/generate", json=_body(overrides={"preset": "hiphop.nope"}))
+    assert r.status_code == 422
+
+
+def test_generate_rejects_cjk_genre_or_mood_with_422(monkeypatch, tmp_path):
+    _with_fake_queue(monkeypatch, tmp_path, "p3.db")
+    assert client.post("/api/generate", json=_body(overrides={"genre": ["流行"]})).status_code == 422
+    assert client.post("/api/generate", json=_body(overrides={"mood": ["温柔"]})).status_code == 422
+    assert client.post("/api/generate", json=_body(overrides={"genre": ["pop"], "mood": ["gentle"]})).status_code == 200
