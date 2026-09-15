@@ -1,7 +1,29 @@
 "use client"
 
-const GENRES = ["流行", "民谣", "摇滚", "R&B", "电子", "古典"]
-const MOODS = ["温柔", "悲伤", "治愈", "浪漫", "欢乐"]
+// 显示中文、发送英文:中文 tag 混进 caption 会削弱 ACE-Step 的条件控制(后端对中文 tag 返回 422)。
+export const GENRES = [
+  { label: "流行", tag: "pop" },
+  { label: "民谣", tag: "folk" },
+  { label: "摇滚", tag: "rock" },
+  { label: "R&B", tag: "r&b" },
+  { label: "电子", tag: "electronic" },
+  { label: "古典", tag: "classical" },
+  { label: "Hip hop", tag: "hip hop" },
+]
+export const MOODS = [
+  { label: "温柔", tag: "gentle" },
+  { label: "悲伤", tag: "sad" },
+  { label: "治愈", tag: "healing" },
+  { label: "浪漫", tag: "romantic" },
+  { label: "欢乐", tag: "joyful" },
+]
+export const PRESET_OPTIONS = [
+  { id: "", label: "自动" },
+  { id: "hiphop.boom_bap", label: "Boom Bap" },
+  { id: "hiphop.trap", label: "Trap" },
+]
+const HIPHOP_TAG = "hip hop"
+const HIPHOP_DEFAULT_PRESET = "hiphop.boom_bap"
 
 export interface AdvValue {
   genre: string[]
@@ -10,6 +32,7 @@ export interface AdvValue {
   language: string
   length: string
   seed: string
+  preset: string
 }
 
 export default function AdvancedSettings({
@@ -32,19 +55,47 @@ export default function AdvancedSettings({
   const toggle = (arr: string[], v: string) =>
     arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]
 
+  function pickGenre(tag: string) {
+    const genre = toggle(value.genre, tag)
+    // 选 Hip hop 且还没选 preset → 默认 boom bap(用户仍可在下方改成 Trap)
+    if (tag === HIPHOP_TAG && genre.includes(tag) && !value.preset) {
+      onChange({ genre, preset: HIPHOP_DEFAULT_PRESET })
+    } else {
+      onChange({ genre })
+    }
+  }
+
   return (
     <div>
+      <p className="text-muted" style={{ fontSize: 12 }}>
+        风格预设
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+        {PRESET_OPTIONS.map((p) => (
+          <span
+            key={p.id || "auto"}
+            role="button"
+            aria-pressed={value.preset === p.id}
+            style={chip(value.preset === p.id)}
+            onClick={() => onChange({ preset: p.id })}
+          >
+            {p.label}
+          </span>
+        ))}
+      </div>
       <p className="text-muted" style={{ fontSize: 12 }}>
         风格
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
         {GENRES.map((g) => (
           <span
-            key={g}
-            style={chip(value.genre.includes(g))}
-            onClick={() => onChange({ genre: toggle(value.genre, g) })}
+            key={g.tag}
+            role="button"
+            aria-pressed={value.genre.includes(g.tag)}
+            style={chip(value.genre.includes(g.tag))}
+            onClick={() => pickGenre(g.tag)}
           >
-            {g}
+            {g.label}
           </span>
         ))}
       </div>
@@ -54,11 +105,13 @@ export default function AdvancedSettings({
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
         {MOODS.map((m) => (
           <span
-            key={m}
-            style={chip(value.mood.includes(m))}
-            onClick={() => onChange({ mood: toggle(value.mood, m) })}
+            key={m.tag}
+            role="button"
+            aria-pressed={value.mood.includes(m.tag)}
+            style={chip(value.mood.includes(m.tag))}
+            onClick={() => onChange({ mood: toggle(value.mood, m.tag) })}
           >
-            {m}
+            {m.label}
           </span>
         ))}
       </div>

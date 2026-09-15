@@ -34,5 +34,14 @@ export interface GenerateInput {
     mood?: string[]
     vocal_gender?: string
     language?: string
+    preset?: string
   }
+}
+
+export interface Inspiration {
+  title: string
+  feeling: string
+  lyrics: string
+  /** 风格预设 id;空表示不预选 */
+  preset: string
 }
