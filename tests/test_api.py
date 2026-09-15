@@ -105,3 +105,11 @@ def test_generate_rejects_cjk_genre_or_mood_with_422(monkeypatch, tmp_path):
     assert client.post("/api/generate", json=_body(overrides={"genre": ["流行"]})).status_code == 422
     assert client.post("/api/generate", json=_body(overrides={"mood": ["温柔"]})).status_code == 422
     assert client.post("/api/generate", json=_body(overrides={"genre": ["pop"], "mood": ["gentle"]})).status_code == 200
+
+
+def test_inspirations_include_hiphop_with_preset():
+    items = client.get("/api/inspirations").json()["inspirations"]
+    assert all("preset" in it for it in items)
+    hip = [it for it in items if it["preset"] == "hiphop.boom_bap"]
+    assert len(hip) == 1
+    assert "[Hook]" in hip[0]["lyrics"] and "hip hop" in hip[0]["feeling"].lower()
