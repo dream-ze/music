@@ -120,3 +120,74 @@ def test_handlers_get_offload_from_config(fake_acestep, monkeypatch):
 
     assert fake_acestep.log["dit"]["offload_to_cpu"] is True
     assert fake_acestep.log["lm"]["offload_to_cpu"] is True
+
+
+# ── caption / keyscale / timesignature / use_cot_caption / shift 透传 ──
+
+def _hiphop_spec(**over):
+    from src.spec import SongSpec, VocalSpec
+    base = dict(language="zh", vocal=VocalSpec(gender="male", style="rap"),
+                genre=["hip hop"], mood=["dark"], instrument=["808 sub-bass"], bpm=140,
+                structure=["Verse", "Hook"], caption="A dark trap track with male rap.",
+                caption_full=True, keyscale="G minor", timesignature=4, preset_id="hiphop.trap")
+    base.update(over)
+    return SongSpec(**base)
+
+
+def test_params_use_full_caption_and_disable_cot_caption():
+    p = build_acestep_params(_hiphop_spec())
+    assert p["caption"] == "A dark trap track with male rap."
+    assert p["prompt"] == p["caption"]
+    assert p["use_cot_caption"] is False
+
+
+def test_params_fall_back_to_tag_string_and_enable_cot_caption():
+    p = build_acestep_params(_hiphop_spec(caption="", caption_full=False))
+    assert "hip hop" in p["caption"] and "808 sub-bass" in p["caption"]
+    assert p["use_cot_caption"] is True
+
+
+def test_params_pass_keyscale_and_timesignature_as_strings():
+    p = build_acestep_params(_hiphop_spec())
+    assert p["keyscale"] == "G minor" and p["timesignature"] == "4"
+    q = build_acestep_params(_hiphop_spec(keyscale="", timesignature=None))
+    assert q["keyscale"] == "" and q["timesignature"] == ""
+
+
+def test_shift_priority_env_over_preset_over_default(monkeypatch):
+    monkeypatch.delenv("ACESTEP_SHIFT", raising=False)
+    assert song_gen.resolve_shift("hiphop.trap") == 3.0        # preset 默认 3.0
+    monkeypatch.setenv("ACESTEP_SHIFT", "1.5")
+    assert song_gen.resolve_shift("hiphop.trap") == 1.5
+    assert build_acestep_params(_hiphop_spec())["shift"] == 1.5
+
+
+def test_generate_song_forwards_new_params(fake_acestep, monkeypatch, tmp_path):
+    """GenerationParams 必须拿到 caption/keyscale/timesignature/use_cot_caption/shift。"""
+    import types as _t
+    captured = {}
+
+    class _GP:
+        def __init__(self, **kw):
+            captured.update(kw)
+
+    class _GC:
+        def __init__(self, **kw):
+            pass
+
+    def _gen(dit, llm, params, cfg, save_dir):
+        return _t.SimpleNamespace(success=True, audios=[{"path": str(tmp_path / "o.wav")}], error=None)
+
+    inf = _t.ModuleType("acestep.inference")
+    inf.GenerationParams, inf.GenerationConfig, inf.generate_music = _GP, _GC, _gen
+    monkeypatch.setitem(sys.modules, "acestep.inference", inf)
+    fake_acestep()
+    monkeypatch.delenv("ZE_FAKE_GEN", raising=False)
+    monkeypatch.delenv("ACESTEP_SHIFT", raising=False)
+
+    song_gen.generate_song("[Verse - rap]\nyo", _hiphop_spec(), length="short",
+                           out_path=str(tmp_path / "o.wav"))
+    assert captured["caption"] == "A dark trap track with male rap."
+    assert captured["keyscale"] == "G minor" and captured["timesignature"] == "4"
+    assert captured["use_cot_caption"] is False and captured["vocal_language"] == "zh"
+    assert captured["shift"] == 3.0 and captured["thinking"] is True

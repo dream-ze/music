@@ -1,13 +1,25 @@
 import os
 import sys
 
+from src.presets import get_preset
 from src.spec import SongSpec
 
 _LENGTH_MAP = {"short": 45, "full": 210}
 # ACE-Step 1.5 turbo 模型推荐推理步数=8（base 模型建议 32-64）。
 _INFER_STEP = 8
-# turbo 模型推荐 shift=3.0（base 用默认 1.0）。
-_SHIFT = 3.0
+# turbo 模型推荐 shift=3.0(官方评价:语义强、清晰,但偏"干"、配器极简)。
+# 优先级:环境变量 ACESTEP_SHIFT > preset.acestep.shift > 3.0,便于不改代码做 A/B。
+_DEFAULT_SHIFT = 3.0
+
+
+def resolve_shift(preset_id: str) -> float:
+    env = os.environ.get("ACESTEP_SHIFT", "").strip()
+    if env:
+        return float(env)
+    try:
+        return float(get_preset(preset_id).acestep.shift)
+    except ValueError:
+        return _DEFAULT_SHIFT
 
 # 模型很重，进程内只初始化一次，之后复用。
 _dit_handler = None
@@ -17,8 +29,17 @@ _llm_handler = None
 def build_acestep_params(spec: SongSpec, length: str = "full", seed: int | None = None) -> dict:
     tags = [*spec.genre, *spec.mood, *spec.instrument,
             f"{spec.vocal.gender} vocal", spec.vocal.style]
+    tag_string = ", ".join(t for t in tags if t)
+    # 有 planner 写的英文整句就用它并关掉 LM 重写(DeepSeek 的音乐知识 ≫ 本机 0.6B);
+    # 否则退回标签串并让 5Hz LM 扩写。
+    caption = spec.caption or tag_string
     return {
-        "prompt": ", ".join(t for t in tags if t),
+        "prompt": caption,      # 兼容旧调用方
+        "caption": caption,
+        "use_cot_caption": not spec.caption_full,
+        "keyscale": spec.keyscale or "",
+        "timesignature": str(spec.timesignature) if spec.timesignature else "",
+        "shift": resolve_shift(spec.preset_id),
         "duration": _LENGTH_MAP.get(length, _LENGTH_MAP["full"]),
         "bpm": spec.bpm,
         "language": spec.language,
@@ -113,14 +134,18 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
 
     fixed = seed is not None
     params = GenerationParams(
-        caption=p["prompt"],
+        caption=p["caption"],
         lyrics=structured_lyrics,
         duration=float(p["duration"]),
         bpm=p["bpm"],
+        keyscale=p["keyscale"],
+        timesignature=p["timesignature"],
         vocal_language=p["language"],
         seed=seed if fixed else -1,
         inference_steps=_INFER_STEP,
-        shift=_SHIFT,
+        shift=p["shift"],
+        thinking=True,
+        use_cot_caption=p["use_cot_caption"],
     )
     gen_config = GenerationConfig(
         batch_size=1,
