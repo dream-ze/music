@@ -7,7 +7,7 @@ def test_make_song_orchestrates(monkeypatch, tmp_path):
     def fake_complete(*args, **kwargs):
         if "音乐制作人" in kwargs.get("system", ""):
             return json.dumps(SAFE_DEFAULT_SPEC)
-        return "[Verse]\nx\n[Chorus]\ny"
+        return "我的歌词"   # 断行器只接受"不改字"的输出;无标签 → 自动补 [Verse]
 
     monkeypatch.setattr(pipeline.planner.llm, "complete", fake_complete)
 
@@ -57,18 +57,19 @@ def test_make_song_propagates_llm_options_and_keeps_generating_on_fallback(
     assert len(calls) == 2
     assert all(call["provider"] == "gemini" for call in calls)
     assert result["llm_status"] == [
-        {"stage": "歌曲规划", "ok": False}, {"stage": "歌词整理", "ok": False}
+        {"stage": "歌曲规划", "ok": False, "reason": "llm_error"},
+        {"stage": "歌词整理", "ok": False, "reason": "llm_error"},
     ]
     assert result["degraded"] is True
 
 
 def test_make_song_applies_overrides(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        pipeline.planner.llm, "complete", lambda *a, **k: json.dumps(SAFE_DEFAULT_SPEC)
-    )
-    monkeypatch.setattr(
-        pipeline.lyrics.llm, "complete", lambda *a, **k: "[Verse]\nx"
-    )
+    # planner 与 lyrics 共用同一个 src.llm 模块,不能分别 patch(后者会覆盖前者);按 system 分流
+    def fake_complete(prompt, *a, **kwargs):
+        if "音乐制作人" in kwargs.get("system", ""):
+            return json.dumps(SAFE_DEFAULT_SPEC)
+        return "词"
+    monkeypatch.setattr(pipeline.planner.llm, "complete", fake_complete)
     seen = {}
     monkeypatch.setattr(
         pipeline.song_gen, "generate_song",
@@ -118,3 +119,39 @@ def test_explicit_llm_options_override_configured_provider(monkeypatch, tmp_path
                        llm_options={"provider": "gemini"})
 
     assert [k.get("provider") for k in seen] == ["gemini", "gemini"]
+
+
+def test_make_song_threads_preset_to_planner_and_lyrics(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_plan(style, lyrics_hint="", *, preset=None, llm_options=None, status_events=None):
+        seen["plan_preset"] = preset.id
+        status_events.append({"stage": "歌曲规划", "ok": True})
+        return pipeline.planner.skeleton_spec(preset)
+
+    def fake_lyrics(raw, spec, *, preset=None, llm_options=None, status_events=None):
+        seen["lyrics_preset"] = preset.id
+        status_events.append({"stage": "歌词整理", "ok": True})
+        return "[Verse - rap]\n" + raw
+
+    monkeypatch.setattr(pipeline.planner, "plan_song", fake_plan)
+    monkeypatch.setattr(pipeline.lyrics, "structure_lyrics", fake_lyrics)
+    monkeypatch.setattr(pipeline.song_gen, "generate_song",
+                        lambda structured, spec, **k: k["out_path"])
+
+    result = pipeline.make_song("词", "说唱", work_dir=str(tmp_path),
+                                overrides={"preset": "hiphop.trap"})
+    assert seen == {"plan_preset": "hiphop.trap", "lyrics_preset": "hiphop.trap"}
+    assert result["preset_id"] == "hiphop.trap"
+    assert result["spec"].preset_id == "hiphop.trap"
+    assert result["degraded"] is False
+
+
+def test_make_song_unknown_preset_raises(monkeypatch, tmp_path):
+    import pytest
+    # 必须 patch 掉出歌:否则 RED 阶段会一路跑到真 generate_song 去加载 ACE-Step 模型
+    monkeypatch.setattr(pipeline.song_gen, "generate_song",
+                        lambda structured, spec, **k: k["out_path"])
+    monkeypatch.setattr(pipeline.planner.llm, "complete", lambda *a, **k: "{}")
+    with pytest.raises(ValueError):
+        pipeline.make_song("词", "x", work_dir=str(tmp_path), overrides={"preset": "nope"})
