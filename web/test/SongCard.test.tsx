@@ -51,4 +51,27 @@ describe("SongCard 降级标记", () => {
     render(<SongCard song={song} onPlay={vi.fn()} />)
     expect(screen.queryByText("降级")).not.toBeInTheDocument()
   })
+
+  it("降级说明按阶段列出 reason 文案", () => {
+    const degraded = {
+      ...song,
+      llm_status: JSON.stringify([
+        { stage: "歌曲规划", ok: false, reason: "non_english" },
+        { stage: "歌词整理", ok: false, reason: "text_changed" },
+      ]),
+    } as Song
+    render(<SongCard song={degraded} onPlay={vi.fn()} />)
+    const title = screen.getByText("降级").getAttribute("title") || ""
+    expect(title).toContain("歌曲规划：模型输出含中文")
+    expect(title).toContain("歌词整理：模型改动了歌词，已用规则断行")
+  })
+
+  it("没有 reason 的旧事件仍能显示", () => {
+    const degraded = {
+      ...song,
+      llm_status: JSON.stringify([{ stage: "歌曲规划", ok: false }]),
+    } as Song
+    render(<SongCard song={degraded} onPlay={vi.fn()} />)
+    expect(screen.getByText("降级").getAttribute("title")).toContain("歌曲规划：已回退")
+  })
 })

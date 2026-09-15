@@ -4,13 +4,24 @@ import { toggleFavorite } from "@/lib/api"
 import { formatDuration } from "@/lib/format"
 import type { Song } from "@/lib/types"
 
-/** 从 llm_status 里挑出回退的阶段名。字段缺失或格式坏都当作"没有降级"。 */
-function degradedStages(raw: string | null | undefined): string[] {
+const REASON_TEXT: Record<string, string> = {
+  llm_error: "模型调用失败",
+  bad_json: "模型输出无法解析",
+  non_english: "模型输出含中文",
+  invalid_spec: "模型输出不合规",
+  empty: "模型返回空响应",
+  text_changed: "模型改动了歌词，已用规则断行",
+}
+
+/** 从 llm_status 里挑出回退的阶段,组成「阶段：原因」说明。字段缺失或格式坏都当作"没有降级"。 */
+function degradedNotes(raw: string | null | undefined): string[] {
   if (!raw) return []
   try {
     const events = JSON.parse(raw)
     if (!Array.isArray(events)) return []
-    return events.filter((e) => e && e.ok === false).map((e) => String(e.stage))
+    return events
+      .filter((e) => e && e.ok === false)
+      .map((e) => `${String(e.stage)}：${REASON_TEXT[String(e.reason)] || "已回退"}`)
   } catch {
     return []
   }
@@ -24,7 +35,7 @@ export default function SongCard({
   onPlay: (s: Song) => void
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
-  const degraded = degradedStages(song.llm_status)
+  const degraded = degradedNotes(song.llm_status)
   return (
     <div
       className="bg-panel"
@@ -86,7 +97,7 @@ export default function SongCard({
           <div style={{ fontSize: 13, fontWeight: 600 }}>{song.title}</div>
           {degraded.length > 0 && (
             <span
-              title={`${degraded.join("、")}已回退，这首歌是降级生成的`}
+              title={`${degraded.join("；")}。这首歌是降级生成的`}
               style={{
                 fontSize: 9.5,
                 padding: "1px 5px",
