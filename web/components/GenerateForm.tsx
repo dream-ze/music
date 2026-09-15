@@ -19,6 +19,7 @@ export default function GenerateForm() {
     language: "",
     length: "full",
     seed: "",
+    preset: "",
   })
   const [status, setStatus] = useState<Status>("idle")
   const [msg, setMsg] = useState("")
@@ -63,6 +64,7 @@ export default function GenerateForm() {
         mood: adv.mood,
         vocal_gender: adv.vocal_gender,
         language: adv.language,
+        preset: adv.preset,
       },
     }
     try {
@@ -136,9 +138,10 @@ export default function GenerateForm() {
       </div>
       <div style={{ flex: 0.85 }}>
         <InspirationList
-          onPick={(l, f) => {
+          onPick={(l, f, preset) => {
             setLyrics(l)
             setFeeling(f)
+            setAdv((s) => ({ ...s, preset }))
           }}
         />
       </div>
