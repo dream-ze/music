@@ -26,7 +26,11 @@ def _ask(text: str, preset: Preset, llm_options: dict | None) -> str:
     r = preset.lyric_rules
     prompt = _TEMPLATE.format(min_s=r.min_syllables, max_s=r.max_syllables,
                               tol=r.tolerance, lyrics=text)
-    return llm.complete(prompt, system=_SYSTEM, **(llm_options or {})) or ""
+    try:
+        return llm.complete(prompt, system=_SYSTEM, **(llm_options or {})) or ""
+    except llm.EmptyResponse:
+        # 空正文按"返回空串"处理,由调用方决定重试;其他 LLMError 照常抛出
+        return ""
 
 
 def _emit(events: list[dict] | None, ok: bool, reason: str | None) -> None:

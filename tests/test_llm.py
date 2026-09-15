@@ -88,3 +88,42 @@ def test_empty_provider_response_is_error(monkeypatch):
 def test_complete_smoke():
     out = llm.complete("只回复一个字：好", system="你是测试助手")
     assert isinstance(out, str) and out.strip()
+
+
+# ── DeepSeek 思考模式 / 空正文类型化 ─────────────────────────────────
+#
+# deepseek-v4-flash 默认开思考:断行这类任务会把 max_tokens 全花在
+# reasoning_content 上,正文为空(finish_reason=length)。planner 的 JSON 任务
+# 思考量小才一直"正常"。实测关掉思考后 1.5s 出正文且质量更好。
+
+def test_deepseek_request_disables_thinking(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(llm.requests, "post",
+                        lambda url, **kw: captured.update(kw) or FakeResponse({"choices": [{"message": {"content": "ok"}}]}))
+    llm.complete("hi", provider="deepseek", api_key="k")
+    assert captured["json"]["thinking"] == {"type": "disabled"}
+
+
+def test_other_openai_compatible_providers_do_not_send_thinking(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(llm.requests, "post",
+                        lambda url, **kw: captured.update(kw) or FakeResponse({"choices": [{"message": {"content": "ok"}}]}))
+    llm.complete("hi", provider="openai", api_key="k")
+    assert "thinking" not in captured["json"]
+
+
+def test_empty_content_raises_typed_empty_response(monkeypatch):
+    monkeypatch.setattr(llm.requests, "post",
+                        lambda *a, **k: FakeResponse({"choices": [{"message": {"content": ""}}]}))
+    with pytest.raises(llm.EmptyResponse):
+        llm.complete("hi", provider="qwen", api_key="key")
+    assert issubclass(llm.EmptyResponse, llm.LLMError)   # 既有 except LLMError 仍能接住
+
+
+def test_reasoning_only_response_is_empty_response(monkeypatch, caplog):
+    body = {"choices": [{"finish_reason": "length",
+                         "message": {"content": "", "reasoning_content": "我们需要…" * 50}}]}
+    monkeypatch.setattr(llm.requests, "post", lambda *a, **k: FakeResponse(body))
+    with pytest.raises(llm.EmptyResponse, match="空响应"):
+        llm.complete("hi", provider="deepseek", api_key="key")
+    assert "思考" in caplog.text     # 日志要说明是预算耗尽于思考,便于排查

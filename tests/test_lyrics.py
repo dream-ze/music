@@ -91,3 +91,51 @@ def test_prompt_contains_rules_and_forbids_edits(monkeypatch):
     lyrics.structure_lyrics("x", safe_spec(), preset=get_preset("hiphop.trap"))
     assert "6-10" in seen["prompt"] and "不改字" in seen["prompt"]
     assert "只能移动换行" in seen["system"]
+
+
+# ── 空正文是抛 EmptyResponse 而不是返回空串;重试必须能接住它 ────────
+
+def test_empty_response_exception_triggers_retry_then_succeeds(monkeypatch):
+    from src import llm
+    raw = "末班车掠过街角，雨还挂在玻璃上"
+    calls = []
+
+    def flaky(*a, **k):
+        calls.append(1)
+        if len(calls) == 1:
+            raise llm.EmptyResponse("模型返回了空响应")
+        return "末班车掠过街角，\n雨还挂在玻璃上"
+
+    monkeypatch.setattr(lyrics.llm, "complete", flaky)
+    events = []
+    out = lyrics.structure_lyrics(raw, safe_spec(), status_events=events)
+    assert len(calls) == 2
+    assert "雨还挂在玻璃上" in out
+    assert events == [{"stage": "歌词整理", "ok": True}]
+
+
+def test_empty_response_exception_twice_reports_empty_not_llm_error(monkeypatch):
+    from src import llm
+
+    def always_empty(*a, **k):
+        raise llm.EmptyResponse("模型返回了空响应")
+
+    monkeypatch.setattr(lyrics.llm, "complete", always_empty)
+    events = []
+    lyrics.structure_lyrics("第一句", safe_spec(), status_events=events)
+    assert events == [{"stage": "歌词整理", "ok": False, "reason": "empty"}]
+
+
+def test_other_llm_error_is_not_retried(monkeypatch):
+    from src import llm
+    calls = []
+
+    def boom(*a, **k):
+        calls.append(1)
+        raise llm.LLMError("模型服务请求失败")
+
+    monkeypatch.setattr(lyrics.llm, "complete", boom)
+    events = []
+    lyrics.structure_lyrics("第一句", safe_spec(), status_events=events)
+    assert len(calls) == 1
+    assert events == [{"stage": "歌词整理", "ok": False, "reason": "llm_error"}]

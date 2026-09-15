@@ -14,6 +14,9 @@ LLM_PROVIDERS = {
         "label": "DeepSeek", "model": "deepseek-v4-flash",
         "key_env": "DEEPSEEK_API_KEY", "base_url": "https://api.deepseek.com/v1",
         "adapter": "openai",
+        # v4-flash 默认开思考:断行这类任务会把 max_tokens 全花在 reasoning_content 上,
+        # 正文为空。实测关掉后 1.5s 出正文、断行质量更好,planner 的 caption 质量相当。
+        "extra_body": {"thinking": {"type": "disabled"}},
     },
     "openai": {
         "label": "OpenAI", "model": "gpt-5-nano",
