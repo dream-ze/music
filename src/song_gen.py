@@ -1,3 +1,4 @@
+import inspect
 import os
 import sys
 
@@ -20,6 +21,62 @@ def resolve_shift(preset_id: str) -> float:
         return float(get_preset(preset_id).acestep.shift)
     except ValueError:
         return _DEFAULT_SHIFT
+
+# ── MPS 省内存补丁:prefill 只算最后一个位置的 logits ────────────────
+#
+# ACE-Step 的自定义 CFG 解码循环(llm_inference._forward_pass)首个 forward 传
+# 整段 prompt 却不带 logits_to_keep,transformers 于是给每个 prompt token 都算
+# 了一遍全词表 logits。MPS 上这块特别贵:上游把 LM 强制成 float32
+# (llm_inference.initialize,bf16 权重转 fp16 会 NaN),5Hz LM 词表 217204,
+# CFG 又把 batch 变成 2(条件+无条件) —— 2 × 217204 × 4B ≈ 1.66 MiB / token,
+# 747 token 的歌词一次就要 1.21 GiB,16GB 机器上直接 MPS OOM,且随歌词长度线性
+# 增长。而两个调用点(llm_inference.py:2570 / 2684)都只取 outputs.logits[:, -1, :]。
+# 传 logits_to_keep=1 语义等价,峰值从 GiB 级降到 MB 级,顺带 prefill 变快。
+#
+# 补丁打在我们这边而不是改 ACE-Step 源码:那是独立 clone 的上游仓库,改了会在
+# 下次 git pull 时丢掉或冲突。
+_LOGITS_TO_KEEP_SUPPORT: dict[type, bool] = {}
+
+
+def _supports_logits_to_keep(model) -> bool:
+    """模型 forward 是否显式接受 logits_to_keep。结果按类缓存(每步都要问)。"""
+    cls = type(model)
+    cached = _LOGITS_TO_KEEP_SUPPORT.get(cls)
+    if cached is None:
+        try:
+            cached = "logits_to_keep" in inspect.signature(cls.forward).parameters
+        except (TypeError, ValueError):
+            cached = False
+        _LOGITS_TO_KEEP_SUPPORT[cls] = cached
+    return cached
+
+
+def patch_prefill_logits(llm_cls) -> bool:
+    """给 LLMHandler._forward_pass 打补丁,返回是否真的打上了。
+
+    幂等:重复调用只打一次。不认识的 handler(没有 _forward_pass,比如测试里的
+    假对象)原样放过 —— 这是纯优化,缺了它只是更费内存,不该让出歌失败。
+    """
+    orig = getattr(llm_cls, "_forward_pass", None)
+    if orig is None or getattr(orig, "_ze_prefill_patch", False):
+        return False
+
+    def _forward_pass(self, model, generated_ids, model_kwargs, past_key_values, use_cache):
+        # 只有 prefill(还没有 KV cache)才会一次喂进整段 prompt;增量解码那支
+        # 喂的是 generated_ids[:, -1:],logits 本来就只有一个位置。
+        if past_key_values is None and _supports_logits_to_keep(model):
+            return model(
+                input_ids=generated_ids,
+                **model_kwargs,
+                use_cache=use_cache,
+                logits_to_keep=1,
+            )
+        return orig(self, model, generated_ids, model_kwargs, past_key_values, use_cache)
+
+    _forward_pass._ze_prefill_patch = True
+    llm_cls._forward_pass = _forward_pass
+    return True
+
 
 # 模型很重，进程内只初始化一次，之后复用。
 _dit_handler = None
@@ -61,6 +118,8 @@ def _get_handlers():
         sys.path.insert(0, config.ACESTEP_PROJECT_ROOT)
     from acestep.handler import AceStepHandler
     from acestep.llm_inference import LLMHandler
+
+    patch_prefill_logits(LLMHandler)
 
     # 官方示例(run_generate_test.py)对 device 传 "auto" 让其自动探测;
     # backend 仍按本机探测到的设备选(cuda->vllm, mps->mlx, 其余->pt)。

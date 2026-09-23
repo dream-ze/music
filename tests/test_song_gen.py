@@ -191,3 +191,105 @@ def test_generate_song_forwards_new_params(fake_acestep, monkeypatch, tmp_path):
     assert captured["keyscale"] == "G minor" and captured["timesignature"] == "4"
     assert captured["use_cot_caption"] is False and captured["vocal_language"] == "zh"
     assert captured["shift"] == 3.0 and captured["thinking"] is True
+
+
+# ── prefill 只算最后一个位置的 logits(MPS OOM 的直接触发点) ────────────
+#
+# 不带 logits_to_keep 时,transformers 会给整段 prompt 的每个 token 都算一遍
+# 全词表 logits:MPS 上 fp32 × 217204 词表 × CFG batch 2 ≈ 1.66 MiB/token,
+# 一首完整歌词(747 token)就是 1.21 GiB,16GB 机器必 OOM。
+
+class _FakeModel:
+    """forward 显式接受 logits_to_keep,和 Qwen3ForCausalLM 一致。"""
+
+    def __init__(self):
+        self.calls = []
+
+    def forward(self, input_ids=None, past_key_values=None, attention_mask=None,
+                use_cache=True, logits_to_keep=0):
+        self.calls.append({"seq_len": input_ids.shape[-1], "logits_to_keep": logits_to_keep})
+        return "out"
+
+    def __call__(self, **kw):
+        return self.forward(**kw)
+
+
+class _LegacyModel(_FakeModel):
+    """老模型:forward 不认识 logits_to_keep。"""
+
+    def forward(self, input_ids=None, past_key_values=None, attention_mask=None,
+                use_cache=True):
+        self.calls.append({"seq_len": input_ids.shape[-1], "logits_to_keep": None})
+        return "out"
+
+
+class _Ids:
+    def __init__(self, n):
+        self.shape = (1, n)
+
+    def __getitem__(self, item):
+        return _Ids(1)  # generated_ids[:, -1:]
+
+
+def _fake_handler_cls():
+    class _H:
+        def _forward_pass(self, model, generated_ids, model_kwargs, past_key_values, use_cache):
+            if past_key_values is None:
+                return model(input_ids=generated_ids, **model_kwargs, use_cache=use_cache)
+            return model(input_ids=generated_ids[:, -1:], past_key_values=past_key_values,
+                         **model_kwargs, use_cache=use_cache)
+    return _H
+
+
+def test_prefill_passes_logits_to_keep_one():
+    cls = _fake_handler_cls()
+    assert song_gen.patch_prefill_logits(cls) is True
+    model = _FakeModel()
+    cls()._forward_pass(model, _Ids(747), {}, None, True)
+    assert model.calls == [{"seq_len": 747, "logits_to_keep": 1}]
+
+
+def test_decode_step_unchanged():
+    """增量解码喂的就是最后一个 token,不该被补丁改道。"""
+    cls = _fake_handler_cls()
+    song_gen.patch_prefill_logits(cls)
+    model = _FakeModel()
+    cls()._forward_pass(model, _Ids(747), {}, object(), True)
+    assert model.calls == [{"seq_len": 1, "logits_to_keep": 0}]
+
+
+def test_patch_falls_back_when_model_lacks_logits_to_keep():
+    """不认识 logits_to_keep 的模型要走原实现,不能 TypeError 把出歌打挂。"""
+    cls = _fake_handler_cls()
+    song_gen.patch_prefill_logits(cls)
+    model = _LegacyModel()
+    cls()._forward_pass(model, _Ids(747), {}, None, True)
+    assert model.calls == [{"seq_len": 747, "logits_to_keep": None}]
+
+
+def test_patch_is_idempotent():
+    cls = _fake_handler_cls()
+    assert song_gen.patch_prefill_logits(cls) is True
+    assert song_gen.patch_prefill_logits(cls) is False
+
+
+def test_get_handlers_applies_prefill_patch(monkeypatch):
+    """补丁必须在 handler 初始化路径上真的被调用,否则等于没打。"""
+    import types as _t
+    cls = _fake_handler_cls()
+    cls.initialize = lambda self, **kw: ("", True)
+
+    pkg = _t.ModuleType("acestep")
+    handler_mod = _t.ModuleType("acestep.handler")
+    handler_mod.AceStepHandler = lambda: _t.SimpleNamespace(
+        initialize_service=lambda **kw: ("", True))
+    llm_mod = _t.ModuleType("acestep.llm_inference")
+    llm_mod.LLMHandler = cls
+    monkeypatch.setitem(sys.modules, "acestep", pkg)
+    monkeypatch.setitem(sys.modules, "acestep.handler", handler_mod)
+    monkeypatch.setitem(sys.modules, "acestep.llm_inference", llm_mod)
+    monkeypatch.setattr(song_gen, "_dit_handler", None)
+    monkeypatch.setattr(song_gen, "_llm_handler", None)
+
+    song_gen._get_handlers()
+    assert getattr(cls._forward_pass, "_ze_prefill_patch", False) is True
