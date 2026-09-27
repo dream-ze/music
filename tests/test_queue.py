@@ -82,3 +82,39 @@ def test_run_generation_persists_llm_status(monkeypatch, tmp_path):
 
     assert json.loads(saved["llm_status"]) == events
     assert json.loads(song["llm_status"]) == events
+
+
+def _stub_io(monkeypatch, tmp_path, saved):
+    monkeypatch.setattr(queue.pipeline, "make_song",
+        lambda *a, **k: {"song": str(tmp_path / "song.wav"),
+                          "spec": _FakeSpec(), "structured_lyrics": "[Verse]\nx",
+                          "llm_status": [], "degraded": False})
+    monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
+    monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 200.0)
+    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
+    monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
+
+
+def test_run_generation_uses_custom_title(monkeypatch, tmp_path):
+    saved = {}
+    _stub_io(monkeypatch, tmp_path, saved)
+    song = queue.run_generation("j1", {
+        "lyrics": "词", "feeling": "女声", "title": "  毕业的青春回忆 ",
+    }, "ze")
+    assert song["title"] == saved["title"] == "毕业的青春回忆"
+
+
+def test_run_generation_blank_title_falls_back(monkeypatch, tmp_path):
+    saved = {}
+    _stub_io(monkeypatch, tmp_path, saved)
+    song = queue.run_generation("j1", {
+        "lyrics": "词", "feeling": "女声，R&B", "title": "   ",
+    }, "ze")
+    assert song["title"] == "女声，R&B"
+
+
+def test_generate_request_trims_and_truncates_title():
+    from server.models import GenerateRequest
+    assert GenerateRequest(lyrics="x", title="  名字 ").title == "名字"
+    assert GenerateRequest(lyrics="x", title="字" * 30).title == "字" * 20
+    assert GenerateRequest(lyrics="x").title == ""

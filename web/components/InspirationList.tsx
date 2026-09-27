@@ -6,7 +6,7 @@ import type { Inspiration } from "@/lib/types"
 export default function InspirationList({
   onPick,
 }: {
-  onPick: (lyrics: string, feeling: string, preset: string) => void
+  onPick: (lyrics: string, feeling: string, preset: string, title: string) => void
 }) {
   const [items, setItems] = useState<Inspiration[]>([])
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function InspirationList({
       {items.map((it) => (
         <div
           key={it.title}
-          onClick={() => onPick(it.lyrics, it.feeling, it.preset || "")}
+          onClick={() => onPick(it.lyrics, it.feeling, it.preset || "", it.title)}
           style={{
             padding: "9px 0",
             borderBottom: "1px solid var(--line)",

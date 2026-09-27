@@ -25,6 +25,8 @@ export interface Job {
 
 export interface GenerateInput {
   lyrics: string
+  /** 自定义歌名;空则后端自动命名 */
+  title?: string
   feeling: string
   length: "full" | "short"
   seed: number | null

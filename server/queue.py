@@ -21,7 +21,8 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
     duration = storage.probe_duration(mp3)
     url = storage.upload_to_r2(mp3, f"{song_id}.mp3")
 
-    title = (payload["feeling"] or payload["lyrics"] or "未命名").strip().splitlines()[0][:20]
+    title = (payload.get("title") or "").strip()[:20] or \
+        (payload["feeling"] or payload["lyrics"] or "未命名").strip().splitlines()[0][:20]
     song = {
         "id": song_id, "title": title,
         "lyrics": payload["lyrics"], "feeling": payload["feeling"],

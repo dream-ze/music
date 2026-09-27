@@ -9,12 +9,12 @@ vi.mock("@/lib/api", () => ({
 }))
 
 describe("InspirationList", () => {
-  it("点示例时把 lyrics / feeling / preset 一起交给 onPick", async () => {
+  it("点示例时把 lyrics / feeling / preset / title 一起交给 onPick", async () => {
     const onPick = vi.fn()
     render(<InspirationList onPick={onPick} />)
     fireEvent.click(await screen.findByText("深夜的中英说唱"))
     await waitFor(() =>
-      expect(onPick).toHaveBeenCalledWith("[Verse]\nyo", "hip hop 说唱", "hiphop.boom_bap")
+      expect(onPick).toHaveBeenCalledWith("[Verse]\nyo", "hip hop 说唱", "hiphop.boom_bap", "深夜的中英说唱")
     )
   })
 })

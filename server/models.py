@@ -27,10 +27,20 @@ class Overrides(BaseModel):
         return v
 
 
+TITLE_MAX = 20
+
+
 class GenerateRequest(BaseModel):
     lyrics: str
+    # 用户自定义歌名;空 → 由 feeling/lyrics 自动命名。只是标签,不进 LLM/模型。
+    title: str = ""
     feeling: str = ""
     length: str = "full"      # full | short
     seed: int | None = None
     instrumental: bool = False
     overrides: Overrides = Field(default_factory=Overrides)
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v: str) -> str:
+        return v.strip()[:TITLE_MAX]

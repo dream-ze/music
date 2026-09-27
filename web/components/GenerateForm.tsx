@@ -10,6 +10,7 @@ type Status = "idle" | "queued" | "running" | "error"
 
 export default function GenerateForm() {
   const { play } = usePlayer()
+  const [title, setTitle] = useState("")
   const [lyrics, setLyrics] = useState("")
   const [feeling, setFeeling] = useState("")
   const [adv, setAdv] = useState<AdvValue>({
@@ -55,6 +56,7 @@ export default function GenerateForm() {
     setMsg("提交中…")
     const input: GenerateInput = {
       lyrics,
+      title: title.trim(),
       feeling,
       length: adv.length as "full" | "short",
       seed: adv.seed ? Number(adv.seed) : null,
@@ -97,6 +99,22 @@ export default function GenerateForm() {
         />
       </div>
       <div className="bg-panel gen-settings" style={{ padding: 16, borderRadius: 14 }}>
+        <h4 style={{ marginTop: 0, fontSize: 14 }}>歌名（可选）</h4>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="不填则自动命名"
+          maxLength={20}
+          style={{
+            width: "100%",
+            background: "var(--field)",
+            color: "var(--ink)",
+            border: "1px solid var(--brand)",
+            borderRadius: 10,
+            padding: 10,
+            marginBottom: 14,
+          }}
+        />
         <h4 style={{ marginTop: 0, fontSize: 14 }}>想要什么感觉</h4>
         <input
           value={feeling}
@@ -138,7 +156,8 @@ export default function GenerateForm() {
       </div>
       <div className="gen-inspire">
         <InspirationList
-          onPick={(l, f, preset) => {
+          onPick={(l, f, preset, t) => {
+            setTitle(t)
             setLyrics(l)
             setFeeling(f)
             setAdv((s) => ({ ...s, preset }))
