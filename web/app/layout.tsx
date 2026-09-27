@@ -16,9 +16,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PasscodeGate>
             <PlayerProvider>
               <Nav />
-              <div style={{ display: "flex", minHeight: "calc(100vh - 59px)" }}>
+              <div className="layout-body">
                 <Sidebar />
-                <main style={{ flex: 1, padding: "22px 24px", paddingBottom: 90 }}>
+                <main className="layout-main">
                   {children}
                 </main>
               </div>

@@ -9,6 +9,7 @@ const items = [
 export default function Sidebar() {
   return (
     <aside
+      className="app-sidebar"
       style={{
         width: 170,
         padding: "18px 12px",

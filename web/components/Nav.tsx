@@ -9,6 +9,7 @@ const items = [
 export default function Nav() {
   return (
     <header
+      className="app-nav"
       style={{
         display: "flex",
         alignItems: "center",
@@ -23,7 +24,7 @@ export default function Nav() {
         zIndex: 20,
       }}
     >
-      <div style={{ fontWeight: 800, fontSize: 16 }}>
+      <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: "nowrap" }}>
         🎵{" "}
         <span
           style={{
@@ -36,7 +37,7 @@ export default function Nav() {
           ze music
         </span>
       </div>
-      <nav style={{ display: "flex", gap: 20 }}>
+      <nav className="nav-links">
         {items.map((it) => (
           <Link
             key={it.href}
@@ -49,6 +50,7 @@ export default function Nav() {
         ))}
       </nav>
       <div
+        className="nav-avatar"
         style={{
           marginLeft: "auto",
           width: 30,

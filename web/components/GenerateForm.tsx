@@ -78,8 +78,8 @@ export default function GenerateForm() {
 
   const busy = status === "queued" || status === "running"
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-      <div className="bg-panel" style={{ flex: 1.3, padding: 16, borderRadius: 14 }}>
+    <div className="gen-form">
+      <div className="bg-panel gen-lyrics" style={{ padding: 16, borderRadius: 14 }}>
         <h4 style={{ marginTop: 0, fontSize: 14 }}>歌词</h4>
         <textarea
           value={lyrics}
@@ -96,7 +96,7 @@ export default function GenerateForm() {
           }}
         />
       </div>
-      <div className="bg-panel" style={{ flex: 1.1, padding: 16, borderRadius: 14 }}>
+      <div className="bg-panel gen-settings" style={{ padding: 16, borderRadius: 14 }}>
         <h4 style={{ marginTop: 0, fontSize: 14 }}>想要什么感觉</h4>
         <input
           value={feeling}
@@ -136,7 +136,7 @@ export default function GenerateForm() {
           <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{msg}</p>
         )}
       </div>
-      <div style={{ flex: 0.85 }}>
+      <div className="gen-inspire">
         <InspirationList
           onPick={(l, f, preset) => {
             setLyrics(l)

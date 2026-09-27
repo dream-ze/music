@@ -7,6 +7,7 @@ export default function Player() {
   if (!current) return null
   return (
     <div
+      className="player-bar"
       style={{
         position: "fixed",
         left: 0,
@@ -30,13 +31,15 @@ export default function Player() {
           background: "linear-gradient(135deg,#2f6bd8,#8fd0f5)",
         }}
       />
-      <div style={{ minWidth: 120 }}>
-        <div style={{ fontSize: 13 }}>{current.title}</div>
+      <div style={{ minWidth: 0, maxWidth: 260 }}>
+        <div style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {current.title}
+        </div>
         <div className="text-muted" style={{ fontSize: 11 }}>
           {formatDuration(current.duration_sec)}
         </div>
       </div>
-      <audio controls autoPlay src={current.mp3_url} style={{ flex: 1, height: 34 }} />
+      <audio controls autoPlay src={current.mp3_url} className="player-audio" />
     </div>
   )
 }

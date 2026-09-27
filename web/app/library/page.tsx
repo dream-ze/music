@@ -33,13 +33,12 @@ export default function Library() {
       <p className="text-muted" style={{ margin: "0 0 18px" }}>
         大家用 AI 创作的所有歌曲
       </p>
-      <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+      <div className="search-row">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="🔍 搜索歌名、风格、歌词"
           style={{
-            flex: 1,
             background: "var(--field)",
             color: "var(--ink)",
             border: "1px solid var(--line)",
@@ -54,7 +53,7 @@ export default function Library() {
           我的收藏
         </button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+      <div className="song-grid">
         {songs.map((s) => (
           <SongCard key={s.id} song={s} onPlay={play} />
         ))}

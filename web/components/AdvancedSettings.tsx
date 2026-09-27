@@ -115,7 +115,7 @@ export default function AdvancedSettings({
           </span>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="opts-row">
         <select
           value={value.vocal_gender}
           onChange={(e) => onChange({ vocal_gender: e.target.value })}
