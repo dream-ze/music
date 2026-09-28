@@ -23,6 +23,16 @@ export interface Job {
   error: string | null
 }
 
+/** 排队中/生成中的任务,作品库用来显示"生成中"卡片 */
+export interface ActiveJob {
+  job_id: string
+  status: "queued" | "running"
+  title: string
+  feeling: string
+  created_by: string
+  created_at: string
+}
+
 export interface GenerateInput {
   lyrics: string
   /** 自定义歌名;空则后端自动命名 */

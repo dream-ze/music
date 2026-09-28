@@ -118,3 +118,19 @@ def test_generate_request_trims_and_truncates_title():
     assert GenerateRequest(lyrics="x", title="  名字 ").title == "名字"
     assert GenerateRequest(lyrics="x", title="字" * 30).title == "字" * 20
     assert GenerateRequest(lyrics="x").title == ""
+
+
+def test_enqueue_stores_title_and_feeling(monkeypatch):
+    """作品库要在生成完之前就能显示歌名,所以提交时就得算好存进 jobs。"""
+    jobs = {}
+    monkeypatch.setattr(queue.db, "create_job",
+        lambda job_id, **k: jobs.__setitem__(job_id, k))
+
+    async def go():
+        q = queue.JobQueue()
+        a = await q.enqueue({"lyrics": "词", "feeling": "女声 hip hop", "title": " 冬日甜心 "}, "ze")
+        b = await q.enqueue({"lyrics": "第一行\n第二行", "feeling": ""}, "ze")
+        return a, b
+    a, b = asyncio.run(go())
+    assert jobs[a]["title"] == "冬日甜心" and jobs[a]["feeling"] == "女声 hip hop"
+    assert jobs[b]["title"] == "第一行" and jobs[b]["feeling"] == ""

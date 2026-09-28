@@ -28,7 +28,8 @@ def init_db(path: str | None = None) -> None:
             );
             CREATE TABLE IF NOT EXISTS jobs (
               job_id TEXT PRIMARY KEY, status TEXT, position INTEGER,
-              song_id TEXT, error TEXT, created_by TEXT, created_at TEXT
+              song_id TEXT, error TEXT, created_by TEXT, created_at TEXT,
+              title TEXT, feeling TEXT
             );
             """
         )
@@ -40,6 +41,11 @@ def _migrate(c: sqlite3.Connection) -> None:
     cols = {r["name"] for r in c.execute("PRAGMA table_info(songs)")}
     if "llm_status" not in cols:
         c.execute("ALTER TABLE songs ADD COLUMN llm_status TEXT")
+    jcols = {r["name"] for r in c.execute("PRAGMA table_info(jobs)")}
+    # 作品库要在歌生成完之前就显示歌名/感觉,所以提交时存进 jobs
+    for col in ("title", "feeling"):
+        if col not in jcols:
+            c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
 
 
 def _now() -> str:
@@ -93,12 +99,13 @@ def toggle_favorite(song_id: str) -> bool:
     return bool(row["favorite"]) if row else False
 
 
-def create_job(job_id: str, *, status: str, position: int, created_by: str) -> None:
+def create_job(job_id: str, *, status: str, position: int, created_by: str,
+               title: str = "", feeling: str = "") -> None:
     with _conn() as c:
         c.execute(
-            "INSERT INTO jobs (job_id,status,position,created_by,created_at) "
-            "VALUES (?,?,?,?,?)",
-            (job_id, status, position, created_by, _now()),
+            "INSERT INTO jobs (job_id,status,position,created_by,created_at,title,feeling) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (job_id, status, position, created_by, _now(), title, feeling),
         )
 
 
@@ -109,6 +116,16 @@ def update_job(job_id: str, **fields) -> None:
     with _conn() as c:
         c.execute(f"UPDATE jobs SET {sets} WHERE job_id=?",
                   [*fields.values(), job_id])
+
+
+def list_active_jobs() -> list[dict]:
+    """排队中/生成中的任务,按提交先后。作品库用它显示"生成中"卡片。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT job_id, status, title, feeling, created_by, created_at "
+            "FROM jobs WHERE status IN ('queued','running') ORDER BY created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_job(job_id: str) -> dict | None:

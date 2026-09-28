@@ -1,4 +1,4 @@
-import type { Song, Job, GenerateInput, Inspiration } from "./types"
+import type { Song, Job, ActiveJob, GenerateInput, Inspiration } from "./types"
 import { getPasscode } from "./passcode"
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
@@ -28,6 +28,11 @@ export function generate(input: GenerateInput) {
 
 export function getJob(jobId: string) {
   return req<Job>(`/api/jobs/${jobId}`)
+}
+
+export async function listActiveJobs(): Promise<ActiveJob[]> {
+  const r = await req<{ jobs: ActiveJob[] }>("/api/jobs/active")
+  return r.jobs
 }
 
 export async function listSongs(

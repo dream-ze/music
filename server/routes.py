@@ -14,6 +14,12 @@ async def generate(req: models.GenerateRequest, request: Request,
     return {"job_id": job_id}
 
 
+@router.get("/jobs/active")
+def active_jobs(who: str = Depends(require_passcode)):
+    # 必须排在 /jobs/{job_id} 前面,否则 "active" 会被当成 job_id
+    return {"jobs": db.list_active_jobs()}
+
+
 @router.get("/jobs/{job_id}")
 def job_status(job_id: str, who: str = Depends(require_passcode)):
     job = db.get_job(job_id)

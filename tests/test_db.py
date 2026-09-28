@@ -98,3 +98,28 @@ def test_init_db_migrates_existing_table_without_llm_status(tmp_path):
     with sqlite3.connect(p) as c:
         cols = {r[1] for r in c.execute("PRAGMA table_info(songs)")}
     assert "llm_status" in cols
+
+
+def test_jobs_table_migrates_title_and_feeling(tmp_path):
+    """老库的 jobs 表没有 title/feeling 列,启动时要自动补上。"""
+    import sqlite3
+    p = str(tmp_path / "old.db")
+    with sqlite3.connect(p) as c:
+        c.execute("CREATE TABLE jobs (job_id TEXT PRIMARY KEY, status TEXT, position INTEGER, "
+                  "song_id TEXT, error TEXT, created_by TEXT, created_at TEXT)")
+    db.init_db(p)
+    db.create_job("j1", status="queued", position=1, created_by="ze",
+                  title="冬日甜心", feeling="女声 hip hop")
+    got = db.get_job("j1")
+    assert got["title"] == "冬日甜心" and got["feeling"] == "女声 hip hop"
+
+
+def test_list_active_jobs_only_queued_running_in_order(tmp_path):
+    db.init_db(str(tmp_path / "t.db"))
+    db.create_job("j1", status="running", position=0, created_by="ze", title="A")
+    db.create_job("j2", status="queued", position=1, created_by="ze", title="B")
+    db.create_job("j3", status="done", position=0, created_by="ze", title="C")
+    db.create_job("j4", status="error", position=0, created_by="ze", title="D")
+    active = db.list_active_jobs()
+    assert [j["job_id"] for j in active] == ["j1", "j2"]
+    assert set(active[0]) == {"job_id", "status", "title", "feeling", "created_by", "created_at"}

@@ -113,3 +113,17 @@ def test_inspirations_include_hiphop_with_preset():
     hip = [it for it in items if it["preset"] == "hiphop.boom_bap"]
     assert len(hip) == 1
     assert "[Hook]" in hip[0]["lyrics"] and "hip hop" in hip[0]["feeling"].lower()
+
+
+def test_active_jobs_endpoint(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "active.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.create_job("j1", status="running", position=0, created_by="demo",
+                  title="冬日甜心", feeling="女声 hip hop")
+    db.create_job("j2", status="done", position=0, created_by="demo", title="旧歌")
+    r = client.get("/api/jobs/active")
+    assert r.status_code == 200
+    jobs = r.json()["jobs"]
+    assert [j["job_id"] for j in jobs] == ["j1"]
+    assert jobs[0]["title"] == "冬日甜心" and jobs[0]["status"] == "running"

@@ -6,6 +6,14 @@ from src import pipeline
 from server import db, storage
 
 
+def song_title(payload: dict) -> str:
+    """用户填了歌名就用;否则取感觉/歌词第一行,最多 20 字。提交与落库共用,保证一致。"""
+    custom = (payload.get("title") or "").strip()[:20]
+    if custom:
+        return custom
+    return (payload.get("feeling") or payload.get("lyrics") or "未命名").strip().splitlines()[0][:20]
+
+
 def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
     """阻塞:成曲 → MP3 → R2 → 写库。返回 song dict。在线程池里跑。"""
     result = pipeline.make_song(
@@ -21,10 +29,8 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
     duration = storage.probe_duration(mp3)
     url = storage.upload_to_r2(mp3, f"{song_id}.mp3")
 
-    title = (payload.get("title") or "").strip()[:20] or \
-        (payload["feeling"] or payload["lyrics"] or "未命名").strip().splitlines()[0][:20]
     song = {
-        "id": song_id, "title": title,
+        "id": song_id, "title": song_title(payload),
         "lyrics": payload["lyrics"], "feeling": payload["feeling"],
         "spec_json": result["spec"].model_dump_json(),
         "structured_lyrics": result["structured_lyrics"],
@@ -57,7 +63,8 @@ class JobQueue:
     async def enqueue(self, payload: dict, created_by: str) -> str:
         job_id = uuid.uuid4().hex
         position = self._queue.qsize() + 1
-        db.create_job(job_id, status="queued", position=position, created_by=created_by)
+        db.create_job(job_id, status="queued", position=position, created_by=created_by,
+                      title=song_title(payload), feeling=payload.get("feeling") or "")
         await self._queue.put((job_id, payload, created_by))
         return job_id
 

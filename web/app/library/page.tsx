@@ -1,21 +1,61 @@
 "use client"
-import { useEffect, useState } from "react"
-import { listSongs } from "@/lib/api"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { listSongs, listActiveJobs } from "@/lib/api"
 import SongCard from "@/components/SongCard"
+import PendingCard from "@/components/PendingCard"
 import { usePlayer } from "@/lib/player"
-import type { Song } from "@/lib/types"
+import type { Song, ActiveJob } from "@/lib/types"
+
+const POLL_MS = 5000
 
 export default function Library() {
   const { play } = usePlayer()
   const [songs, setSongs] = useState<Song[]>([])
+  const [jobs, setJobs] = useState<ActiveJob[]>([])
   const [q, setQ] = useState("")
   const [tab, setTab] = useState<"all" | "fav">("all")
+  // 只在「全部」且没搜索词时显示生成中卡片;搜索结果里混进去会显得不对
+  const showPending = tab === "all" && !q
 
-  useEffect(() => {
+  const loadSongs = useCallback(() => {
     listSongs({ q, favorite: tab === "fav" })
       .then(setSongs)
       .catch(() => setSongs([]))
   }, [q, tab])
+
+  useEffect(loadSongs, [loadSongs])
+
+  // 有任务在跑就每 5 秒查一次;某个任务从列表消失 = 生成完了,重拉歌曲让它出现在原位
+  const prevIds = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!showPending) {
+      setJobs([])
+      prevIds.current = new Set()
+      return
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let cancelled = false
+    const tick = async () => {
+      let next: ActiveJob[] = []
+      try {
+        next = await listActiveJobs()
+      } catch {
+        next = []
+      }
+      if (cancelled) return
+      const ids = new Set(next.map((j) => j.job_id))
+      const finished = [...prevIds.current].some((id) => !ids.has(id))
+      prevIds.current = ids
+      setJobs(next)
+      if (finished) loadSongs()
+      if (next.length > 0) timer = setTimeout(tick, POLL_MS)
+    }
+    tick()
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [showPending, loadSongs])
 
   const tabStyle = (on: boolean) =>
     ({
@@ -54,11 +94,14 @@ export default function Library() {
         </button>
       </div>
       <div className="song-grid">
+        {jobs.map((j) => (
+          <PendingCard key={j.job_id} job={j} />
+        ))}
         {songs.map((s) => (
           <SongCard key={s.id} song={s} onPlay={play} />
         ))}
       </div>
-      {songs.length === 0 && <p className="text-muted">还没有歌曲</p>}
+      {songs.length === 0 && jobs.length === 0 && <p className="text-muted">还没有歌曲</p>}
     </div>
   )
 }

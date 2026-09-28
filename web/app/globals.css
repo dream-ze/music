@@ -281,3 +281,25 @@ textarea::placeholder {
     font-size: 16px;
   }
 }
+
+/* 作品库"生成中"卡片:封面流动光效 + 转圈 */
+.pending-cover {
+  background: linear-gradient(120deg, #cfe2f5, #eaf3fc 40%, #cfe2f5 60%, #eaf3fc);
+  background-size: 300% 100%;
+  animation: pending-shimmer 2.4s linear infinite;
+}
+.pending-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 107, 216, 0.25);
+  border-top-color: var(--brand);
+  animation: pending-spin 0.9s linear infinite;
+}
+@keyframes pending-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+@keyframes pending-spin {
+  to { transform: rotate(360deg); }
+}
