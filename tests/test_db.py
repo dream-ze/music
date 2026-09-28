@@ -123,3 +123,68 @@ def test_list_active_jobs_only_queued_running_in_order(tmp_path):
     active = db.list_active_jobs()
     assert [j["job_id"] for j in active] == ["j1", "j2"]
     assert set(active[0]) == {"job_id", "status", "title", "feeling", "created_by", "created_at"}
+
+
+# ── 自定义分类 ────────────────────────────────────────────────────
+
+def test_create_and_list_categories(tmp_path):
+    db.init_db(str(tmp_path / "cat.db"))
+    cat = db.create_category("民谣", "ze")
+    assert cat["name"] == "民谣"
+    cats = db.list_categories()
+    assert len(cats) == 1
+    assert cats[0]["id"] == cat["id"]
+    assert cats[0]["song_count"] == 0
+
+
+def test_set_song_category_and_filter(tmp_path):
+    db.init_db(str(tmp_path / "cat2.db"))
+    cat = db.create_category("民谣", "ze")
+    db.insert_song(_song(id="s1"))
+    db.insert_song(_song(id="s2"))
+    assert db.set_song_category("s1", cat["id"]) is True
+    assert db.get_song("s1")["category_id"] == cat["id"]
+
+    in_cat = db.list_songs(category=cat["id"])
+    assert [s["id"] for s in in_cat] == ["s1"]
+
+    uncategorized = db.list_songs(category="__none__")
+    assert [s["id"] for s in uncategorized] == ["s2"]
+
+    cats = db.list_categories()
+    assert cats[0]["song_count"] == 1
+
+
+def test_set_song_category_unknown_song_returns_false(tmp_path):
+    db.init_db(str(tmp_path / "cat3.db"))
+    assert db.set_song_category("nope", None) is False
+
+
+def test_delete_category_unsets_songs_but_keeps_them(tmp_path):
+    db.init_db(str(tmp_path / "cat4.db"))
+    cat = db.create_category("民谣", "ze")
+    db.insert_song(_song(id="s1"))
+    db.set_song_category("s1", cat["id"])
+
+    assert db.delete_category(cat["id"]) is True
+    assert db.get_song("s1")["category_id"] is None
+    assert db.list_categories() == []
+
+
+def test_delete_category_unknown_returns_false(tmp_path):
+    db.init_db(str(tmp_path / "cat5.db"))
+    assert db.delete_category("nope") is False
+
+
+def test_songs_table_migrates_category_id(tmp_path):
+    """老库的 songs 表没有 category_id 列,启动时要自动补上。"""
+    import sqlite3
+    p = str(tmp_path / "oldsongs.db")
+    with sqlite3.connect(p) as c:
+        c.execute("CREATE TABLE songs (id TEXT PRIMARY KEY, title TEXT, lyrics TEXT, "
+                  "feeling TEXT, spec_json TEXT, structured_lyrics TEXT, seed INTEGER, "
+                  "mp3_url TEXT, duration_sec REAL, instrumental INTEGER DEFAULT 0, "
+                  "created_by TEXT, favorite INTEGER DEFAULT 0, created_at TEXT)")
+    db.init_db(p)
+    db.insert_song(_song(id="s1"))
+    assert db.get_song("s1")["category_id"] is None

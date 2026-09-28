@@ -1,4 +1,4 @@
-import type { Song, Job, ActiveJob, GenerateInput, Inspiration } from "./types"
+import type { Song, Job, ActiveJob, GenerateInput, Inspiration, Category } from "./types"
 import { getPasscode } from "./passcode"
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
@@ -36,12 +36,13 @@ export async function listActiveJobs(): Promise<ActiveJob[]> {
 }
 
 export async function listSongs(
-  params: { q?: string; favorite?: boolean; mine?: string } = {}
+  params: { q?: string; favorite?: boolean; mine?: string; category?: string } = {}
 ): Promise<Song[]> {
   const qs = new URLSearchParams()
   if (params.q) qs.set("q", params.q)
   if (params.favorite) qs.set("favorite", "true")
   if (params.mine) qs.set("mine", params.mine)
+  if (params.category) qs.set("category", params.category)
   const r = await req<{ songs: Song[] }>(`/api/songs?${qs.toString()}`)
   return r.songs
 }
@@ -55,6 +56,29 @@ export async function toggleFavorite(id: string): Promise<boolean> {
 
 export async function deleteSong(id: string): Promise<void> {
   await req<{ deleted: boolean }>(`/api/songs/${id}`, { method: "DELETE" })
+}
+
+export async function listCategories(): Promise<Category[]> {
+  const r = await req<{ categories: Category[] }>("/api/categories")
+  return r.categories
+}
+
+export function createCategory(name: string): Promise<Category> {
+  return req<Category>("/api/categories", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  await req<{ deleted: boolean }>(`/api/categories/${id}`, { method: "DELETE" })
+}
+
+export async function setSongCategory(songId: string, categoryId: string | null): Promise<void> {
+  await req<{ category_id: string | null }>(`/api/songs/${songId}/category`, {
+    method: "POST",
+    body: JSON.stringify({ category_id: categoryId }),
+  })
 }
 
 export async function getInspirations() {

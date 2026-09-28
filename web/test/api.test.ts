@@ -61,3 +61,48 @@ describe("api", () => {
     await expect(api.getJob("j1")).rejects.toThrow()
   })
 })
+
+describe("api 自定义分类", () => {
+  it("listCategories 返回数组", async () => {
+    vi.stubGlobal("fetch", mockFetch({ categories: [{ id: "c1", name: "民谣" }] }))
+    const cats = await api.listCategories()
+    expect(cats).toHaveLength(1)
+    expect(cats[0].name).toBe("民谣")
+  })
+
+  it("createCategory 发 POST 带 name", async () => {
+    const f = mockFetch({ id: "c1", name: "民谣" })
+    vi.stubGlobal("fetch", f)
+    const cat = await api.createCategory("民谣")
+    expect(cat.id).toBe("c1")
+    const [url, opts] = f.mock.calls[0]
+    expect(String(url)).toContain("/api/categories")
+    expect(opts.method).toBe("POST")
+    expect(JSON.parse(opts.body)).toEqual({ name: "民谣" })
+  })
+
+  it("deleteCategory 发 DELETE", async () => {
+    const f = mockFetch({ deleted: true })
+    vi.stubGlobal("fetch", f)
+    await api.deleteCategory("c1")
+    const [url, opts] = f.mock.calls[0]
+    expect(String(url)).toContain("/api/categories/c1")
+    expect(opts.method).toBe("DELETE")
+  })
+
+  it("setSongCategory 发 POST 带 category_id", async () => {
+    const f = mockFetch({ category_id: "c1" })
+    vi.stubGlobal("fetch", f)
+    await api.setSongCategory("s1", "c1")
+    const [url, opts] = f.mock.calls[0]
+    expect(String(url)).toContain("/api/songs/s1/category")
+    expect(JSON.parse(opts.body)).toEqual({ category_id: "c1" })
+  })
+
+  it("listSongs 带 category 参数", async () => {
+    const f = mockFetch({ songs: [] })
+    vi.stubGlobal("fetch", f)
+    await api.listSongs({ category: "c1" })
+    expect(String(f.mock.calls[0][0])).toContain("category=c1")
+  })
+})

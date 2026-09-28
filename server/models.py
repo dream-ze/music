@@ -51,3 +51,23 @@ class GenerateRequest(BaseModel):
         if v not in ("auto", "full", "short"):
             raise ValueError("length must be auto/full/short")
         return v
+
+
+CATEGORY_NAME_MAX = 20
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v: str) -> str:
+        v = v.strip()[:CATEGORY_NAME_MAX]
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+
+class SongCategoryUpdate(BaseModel):
+    # None = 移出分类,回到未分类
+    category_id: str | None = None

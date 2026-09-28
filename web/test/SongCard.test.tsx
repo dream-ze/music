@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import SongCard from "@/components/SongCard"
-import { deleteSong } from "@/lib/api"
-import type { Song } from "@/lib/types"
+import { deleteSong, setSongCategory } from "@/lib/api"
+import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   deleteSong: vi.fn().mockResolvedValue(undefined),
+  setSongCategory: vi.fn().mockResolvedValue(undefined),
 }))
 
 const song = {
@@ -34,6 +35,53 @@ describe("SongCard", () => {
   it("不再显示 @created_by", () => {
     render(<SongCard song={song} onPlay={vi.fn()} />)
     expect(screen.queryByText("@ze")).not.toBeInTheDocument()
+  })
+
+  it("卡片可拖拽,拖拽开始时把歌曲 id 写进 dataTransfer", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    const card = screen.getByText("夏夜的微风").closest('[draggable="true"]')
+    expect(card).not.toBeNull()
+    const setData = vi.fn()
+    fireEvent.dragStart(card as Element, { dataTransfer: { setData } })
+    expect(setData).toHaveBeenCalledWith(SONG_DRAG_MIME, "s1")
+  })
+})
+
+describe("SongCard 归类", () => {
+  const categories: Category[] = [
+    { id: "c1", name: "民谣", created_by: "ze", created_at: "", song_count: 1 },
+    { id: "c2", name: "说唱", created_by: "ze", created_at: "", song_count: 0 },
+  ]
+
+  it("不传 categories 时不显示归类下拉框", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    expect(screen.queryByLabelText("分类")).toBeNull()
+  })
+
+  it("传 categories 时显示下拉框,默认选中未分类", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} categories={categories} />)
+    expect(screen.getByLabelText("分类")).toHaveValue("")
+  })
+
+  it("选择分类会调用接口并回调 onCategoryChanged", async () => {
+    const onCategoryChanged = vi.fn()
+    render(
+      <SongCard
+        song={song}
+        onPlay={vi.fn()}
+        categories={categories}
+        onCategoryChanged={onCategoryChanged}
+      />
+    )
+    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "c1" } })
+    await waitFor(() => expect(setSongCategory).toHaveBeenCalledWith("s1", "c1"))
+    await waitFor(() => expect(onCategoryChanged).toHaveBeenCalledWith("s1", "c1"))
+  })
+
+  it("已有分类的歌显示当前选中项", () => {
+    const categorized = { ...song, category_id: "c2" } as Song
+    render(<SongCard song={categorized} onPlay={vi.fn()} categories={categories} />)
+    expect(screen.getByLabelText("分类")).toHaveValue("c2")
   })
 })
 

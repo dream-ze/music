@@ -1,29 +1,48 @@
 "use client"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { listSongs, listActiveJobs } from "@/lib/api"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { listSongs, listActiveJobs, listCategories } from "@/lib/api"
 import SongCard from "@/components/SongCard"
 import PendingCard from "@/components/PendingCard"
 import { usePlayer } from "@/lib/player"
-import type { Song, ActiveJob } from "@/lib/types"
+import { UNCATEGORIZED, type Song, type ActiveJob, type Category } from "@/lib/types"
 
 const POLL_MS = 5000
 
+// 静态导出下 useSearchParams 必须包 Suspense,否则整页无法预渲染
 export default function Library() {
+  return (
+    <Suspense fallback={null}>
+      <LibraryContent />
+    </Suspense>
+  )
+}
+
+function LibraryContent() {
   const { play } = usePlayer()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const cat = searchParams.get("cat") || ""
+
   const [songs, setSongs] = useState<Song[]>([])
   const [jobs, setJobs] = useState<ActiveJob[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [q, setQ] = useState("")
   const [tab, setTab] = useState<"all" | "fav">("all")
-  // 只在「全部」且没搜索词时显示生成中卡片;搜索结果里混进去会显得不对
-  const showPending = tab === "all" && !q
+  // 只在「全部」、没搜索词、也没按分类筛选时显示生成中卡片:
+  // 生成中的歌还没有分类,混进筛选结果里会显得不对
+  const showPending = tab === "all" && !q && !cat
 
   const loadSongs = useCallback(() => {
-    listSongs({ q, favorite: tab === "fav" })
+    listSongs({ q, favorite: tab === "fav", category: cat })
       .then(setSongs)
       .catch(() => setSongs([]))
-  }, [q, tab])
+  }, [q, tab, cat])
 
   useEffect(loadSongs, [loadSongs])
+  useEffect(() => {
+    listCategories().then(setCategories).catch(() => setCategories([]))
+  }, [])
 
   // 有任务在跑就每 5 秒查一次;某个任务从列表消失 = 生成完了,重拉歌曲让它出现在原位
   const prevIds = useRef<Set<string>>(new Set())
@@ -67,11 +86,29 @@ export default function Library() {
       color: on ? "var(--brand)" : "var(--muted)",
     }) as const
 
+  const activeCategoryName =
+    cat === UNCATEGORIZED
+      ? "未分类"
+      : categories.find((c) => c.id === cat)?.name
+
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 4px" }}>作品库</h1>
       <p className="text-muted" style={{ margin: "0 0 18px" }}>
-        大家用 AI 创作的所有歌曲
+        {activeCategoryName ? (
+          <>
+            分类：{activeCategoryName}{" "}
+            <span
+              role="button"
+              onClick={() => router.push("/library")}
+              style={{ color: "var(--brand)", cursor: "pointer" }}
+            >
+              · 返回全部
+            </span>
+          </>
+        ) : (
+          "大家用 AI 创作的所有歌曲"
+        )}
       </p>
       <div className="search-row">
         <input
@@ -102,7 +139,16 @@ export default function Library() {
             key={s.id}
             song={s}
             onPlay={play}
+            categories={categories}
             onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
+            onCategoryChanged={(id, newCat) => {
+              // 正按分类筛选时,挪去别的分类(或挪出/挪入未分类)的歌要从当前列表里消失
+              const newKey = newCat || UNCATEGORIZED
+              if (cat && newKey !== cat) {
+                setSongs((cur) => cur.filter((x) => x.id !== id))
+              }
+              listCategories().then(setCategories).catch(() => {})
+            }}
           />
         ))}
       </div>

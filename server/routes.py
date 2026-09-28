@@ -31,10 +31,10 @@ def job_status(job_id: str, who: str = Depends(require_passcode)):
 
 
 @router.get("/songs")
-def songs(q: str = "", favorite: bool = False, mine: str = "",
+def songs(q: str = "", favorite: bool = False, mine: str = "", category: str = "",
           limit: int = 50, offset: int = 0,
           who: str = Depends(require_passcode)):
-    return {"songs": db.list_songs(q=q, favorite=favorite, mine=mine,
+    return {"songs": db.list_songs(q=q, favorite=favorite, mine=mine, category=category,
                                    limit=limit, offset=offset)}
 
 
@@ -61,6 +61,34 @@ def favorite(song_id: str, who: str = Depends(require_passcode)):
     if not db.get_song(song_id):
         raise HTTPException(404, "歌曲不存在")
     return {"favorite": db.toggle_favorite(song_id)}
+
+
+@router.post("/songs/{song_id}/category")
+def set_song_category(song_id: str, body: models.SongCategoryUpdate,
+                      who: str = Depends(require_passcode)):
+    if not db.get_song(song_id):
+        raise HTTPException(404, "歌曲不存在")
+    if body.category_id is not None and not db.get_category(body.category_id):
+        raise HTTPException(404, "分类不存在")
+    db.set_song_category(song_id, body.category_id)
+    return {"category_id": body.category_id}
+
+
+@router.get("/categories")
+def categories(who: str = Depends(require_passcode)):
+    return {"categories": db.list_categories()}
+
+
+@router.post("/categories")
+def create_category(body: models.CategoryCreate, who: str = Depends(require_passcode)):
+    return db.create_category(body.name, who)
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(category_id: str, who: str = Depends(require_passcode)):
+    if not db.delete_category(category_id):
+        raise HTTPException(404, "分类不存在")
+    return {"deleted": True}
 
 
 @router.get("/inspirations")

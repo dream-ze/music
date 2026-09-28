@@ -189,3 +189,57 @@ def test_delete_song_ok_even_if_r2_delete_fails(monkeypatch, tmp_path):
     r = client.delete("/api/songs/s2")
     assert r.status_code == 200
     assert db.get_song("s2") is None
+
+
+def test_category_crud_and_song_assignment(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "catapi.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s1", "title": "旧歌", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s1.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+
+    r = client.post("/api/categories", json={"name": "  民谣  "})
+    assert r.status_code == 200
+    cat_id = r.json()["id"]
+    assert r.json()["name"] == "民谣"
+
+    r = client.get("/api/categories")
+    assert r.json()["categories"][0]["song_count"] == 0
+
+    r = client.post(f"/api/songs/s1/category", json={"category_id": cat_id})
+    assert r.status_code == 200
+    assert db.get_song("s1")["category_id"] == cat_id
+
+    r = client.get("/api/songs", params={"category": cat_id})
+    assert [s["id"] for s in r.json()["songs"]] == ["s1"]
+
+    r = client.post("/api/songs/s1/category", json={"category_id": None})
+    assert r.status_code == 200
+    assert db.get_song("s1")["category_id"] is None
+
+    r = client.delete(f"/api/categories/{cat_id}")
+    assert r.status_code == 200
+    r = client.delete(f"/api/categories/{cat_id}")
+    assert r.status_code == 404
+
+
+def test_category_rejects_blank_name(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "catblank.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    r = client.post("/api/categories", json={"name": "   "})
+    assert r.status_code == 422
+
+
+def test_assign_song_to_unknown_category_404(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "catunk.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s1", "title": "旧歌", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s1.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+    r = client.post("/api/songs/s1/category", json={"category_id": "nope"})
+    assert r.status_code == 404

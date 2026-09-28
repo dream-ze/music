@@ -1,9 +1,9 @@
 "use client"
 import { useState } from "react"
-import { toggleFavorite, deleteSong } from "@/lib/api"
+import { toggleFavorite, deleteSong, setSongCategory } from "@/lib/api"
 import { formatDuration } from "@/lib/format"
 import { usePlayer } from "@/lib/player"
-import type { Song } from "@/lib/types"
+import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
 
 const REASON_TEXT: Record<string, string> = {
   llm_error: "模型调用失败",
@@ -32,14 +32,21 @@ export default function SongCard({
   song,
   onPlay,
   onDeleted,
+  categories = [],
+  onCategoryChanged,
 }: {
   song: Song
   onPlay: (s: Song) => void
   /** 删除成功后回调,调用方从列表里移掉这张卡片 */
   onDeleted?: (id: string) => void
+  /** 归类下拉框的选项;不传就不显示下拉框(拖拽仍然可用) */
+  categories?: Category[]
+  /** 归类改变后回调(比如正在按分类筛选时,挪走了就该从列表里消失) */
+  onCategoryChanged?: (songId: string, categoryId: string | null) => void
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
   const [deleting, setDeleting] = useState(false)
+  const [categoryId, setCategoryId] = useState(song.category_id ?? "")
   const { current, stop } = usePlayer()
   const degraded = degradedNotes(song.llm_status)
 
@@ -54,10 +61,29 @@ export default function SongCard({
       setDeleting(false)
     }
   }
+
+  async function handleCategoryChange(value: string) {
+    const prev = categoryId
+    setCategoryId(value)
+    try {
+      await setSongCategory(song.id, value || null)
+      onCategoryChanged?.(song.id, value || null)
+    } catch {
+      setCategoryId(prev)
+    }
+  }
+
   return (
     <div
       className="bg-panel"
-      style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)" }}
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData(SONG_DRAG_MIME, song.id)}
+      style={{
+        borderRadius: 12,
+        overflow: "hidden",
+        border: "1px solid var(--line)",
+        cursor: "grab",
+      }}
     >
       <div
         style={{
@@ -132,6 +158,31 @@ export default function SongCard({
         <div className="text-muted" style={{ fontSize: 10.5, marginBottom: 7 }}>
           {song.feeling}
         </div>
+        {categories.length > 0 && (
+          <select
+            aria-label="分类"
+            value={categoryId}
+            onChange={(e) => handleCategoryChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              fontSize: 10.5,
+              marginBottom: 7,
+              padding: "3px 6px",
+              borderRadius: 6,
+              border: "1px solid var(--line)",
+              background: "var(--field)",
+              color: "var(--muted)",
+            }}
+          >
+            <option value="">未分类</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
         <div
           style={{
             display: "flex",

@@ -6,9 +6,14 @@ import { listSongs, listActiveJobs } from "@/lib/api"
 vi.mock("@/lib/api", () => ({
   listSongs: vi.fn(),
   listActiveJobs: vi.fn(),
+  listCategories: vi.fn().mockResolvedValue([]),
   toggleFavorite: vi.fn(),
 }))
 vi.mock("@/lib/player", () => ({ usePlayer: () => ({ play: vi.fn() }) }))
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}))
 
 const song = {
   id: "s1", title: "旧歌", lyrics: "", feeling: "流行", spec_json: "{}", structured_lyrics: "",

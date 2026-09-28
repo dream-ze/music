@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 import datetime as _dt
 
 import config
@@ -31,6 +32,9 @@ def init_db(path: str | None = None) -> None:
               song_id TEXT, error TEXT, created_by TEXT, created_at TEXT,
               title TEXT, feeling TEXT
             );
+            CREATE TABLE IF NOT EXISTS categories (
+              id TEXT PRIMARY KEY, name TEXT, created_by TEXT, created_at TEXT
+            );
             """
         )
         _migrate(c)
@@ -46,6 +50,9 @@ def _migrate(c: sqlite3.Connection) -> None:
     for col in ("title", "feeling"):
         if col not in jcols:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    if "category_id" not in cols:
+        # 一首歌只属于一个自定义分类;NULL = 未分类
+        c.execute("ALTER TABLE songs ADD COLUMN category_id TEXT")
 
 
 def _now() -> str:
@@ -72,7 +79,7 @@ def get_song(song_id: str) -> dict | None:
 
 
 def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
-               limit: int = 50, offset: int = 0) -> list[dict]:
+               category: str = "", limit: int = 50, offset: int = 0) -> list[dict]:
     where, args = [], []
     if q:
         where.append("(title LIKE ? OR feeling LIKE ? OR lyrics LIKE ?)")
@@ -82,6 +89,11 @@ def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
     if mine:
         where.append("created_by=?")
         args.append(mine)
+    if category == "__none__":
+        where.append("category_id IS NULL")
+    elif category:
+        where.append("category_id=?")
+        args.append(category)
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     args += [limit, offset]
     with _conn() as c:
@@ -96,6 +108,49 @@ def delete_song(song_id: str) -> bool:
     """删数据库记录,返回是否真的删到了(歌不存在时 False)。"""
     with _conn() as c:
         cur = c.execute("DELETE FROM songs WHERE id=?", (song_id,))
+        return cur.rowcount > 0
+
+
+def create_category(name: str, created_by: str) -> dict:
+    cid = uuid.uuid4().hex
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO categories (id,name,created_by,created_at) VALUES (?,?,?,?)",
+            (cid, name, created_by, _now()),
+        )
+    return {"id": cid, "name": name, "created_by": created_by}
+
+
+def list_categories() -> list[dict]:
+    """所有分类,附带各自的歌曲数(未分类不在这张表里,由前端固定一条"未分类"入口)。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT c.id, c.name, c.created_by, c.created_at, "
+            "COUNT(s.id) AS song_count "
+            "FROM categories c LEFT JOIN songs s ON s.category_id = c.id "
+            "GROUP BY c.id ORDER BY c.created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_category(category_id: str) -> dict | None:
+    with _conn() as c:
+        row = c.execute("SELECT * FROM categories WHERE id=?", (category_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def delete_category(category_id: str) -> bool:
+    """删分类本身;归在它下面的歌不删,category_id 清空回到"未分类"。"""
+    with _conn() as c:
+        c.execute("UPDATE songs SET category_id=NULL WHERE category_id=?", (category_id,))
+        cur = c.execute("DELETE FROM categories WHERE id=?", (category_id,))
+        return cur.rowcount > 0
+
+
+def set_song_category(song_id: str, category_id: str | None) -> bool:
+    """把歌拖进(或移出,category_id=None)一个分类。返回歌是否存在。"""
+    with _conn() as c:
+        cur = c.execute("UPDATE songs SET category_id=? WHERE id=?", (category_id, song_id))
         return cur.rowcount > 0
 
 

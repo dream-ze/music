@@ -1,17 +1,19 @@
 "use client"
 import { useEffect, useState } from "react"
-import { listSongs } from "@/lib/api"
+import { listSongs, listCategories } from "@/lib/api"
 import SongCard from "@/components/SongCard"
 import { usePlayer } from "@/lib/player"
-import type { Song } from "@/lib/types"
+import type { Song, Category } from "@/lib/types"
 
 export default function Favorites() {
   const { play } = usePlayer()
   const [songs, setSongs] = useState<Song[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   useEffect(() => {
     listSongs({ favorite: true })
       .then(setSongs)
       .catch(() => setSongs([]))
+    listCategories().then(setCategories).catch(() => setCategories([]))
   }, [])
   return (
     <div>
@@ -22,6 +24,7 @@ export default function Favorites() {
             key={s.id}
             song={s}
             onPlay={play}
+            categories={categories}
             onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
           />
         ))}
