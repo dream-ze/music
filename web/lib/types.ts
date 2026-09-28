@@ -38,7 +38,8 @@ export interface GenerateInput {
   /** 自定义歌名;空则后端自动命名 */
   title?: string
   feeling: string
-  length: "full" | "short"
+  /** auto = 按歌词自动估算(前端唯一使用的挡位);full/short 只留给内部/测试用 */
+  length: "auto" | "full" | "short"
   seed: number | null
   instrumental: boolean
   overrides: {

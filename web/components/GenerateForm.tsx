@@ -18,7 +18,6 @@ export default function GenerateForm() {
     mood: [],
     vocal_gender: "",
     language: "",
-    length: "full",
     seed: "",
     preset: "",
   })
@@ -58,7 +57,7 @@ export default function GenerateForm() {
       lyrics,
       title: title.trim(),
       feeling,
-      length: adv.length as "full" | "short",
+      length: "auto", // 时长按歌词自动估算,不再让用户手动选挡位
       seed: adv.seed ? Number(adv.seed) : null,
       instrumental: false,
       overrides: {

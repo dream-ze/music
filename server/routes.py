@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from server import db, models, inspirations
+from server import db, models, inspirations, storage
 from server.auth import require_passcode
 
 router = APIRouter(prefix="/api")
@@ -36,6 +36,24 @@ def songs(q: str = "", favorite: bool = False, mine: str = "",
           who: str = Depends(require_passcode)):
     return {"songs": db.list_songs(q=q, favorite=favorite, mine=mine,
                                    limit=limit, offset=offset)}
+
+
+@router.delete("/songs/{song_id}")
+def delete_song(song_id: str, who: str = Depends(require_passcode)):
+    song = db.get_song(song_id)
+    if not song:
+        raise HTTPException(404, "歌曲不存在")
+    if song.get("mp3_url"):
+        # R2 删失败只记日志、照样删记录:一个多余的文件代价很小,
+        # 但"删不掉、一直挂在库里"的歌体验更差。
+        key = song["mp3_url"].rsplit("/", 1)[-1]
+        try:
+            storage.delete_from_r2(key)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning("R2 删除失败: %s", key, exc_info=True)
+    db.delete_song(song_id)
+    return {"deleted": True}
 
 
 @router.post("/songs/{song_id}/favorite")

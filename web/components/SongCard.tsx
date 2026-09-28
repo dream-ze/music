@@ -1,7 +1,8 @@
 "use client"
 import { useState } from "react"
-import { toggleFavorite } from "@/lib/api"
+import { toggleFavorite, deleteSong } from "@/lib/api"
 import { formatDuration } from "@/lib/format"
+import { usePlayer } from "@/lib/player"
 import type { Song } from "@/lib/types"
 
 const REASON_TEXT: Record<string, string> = {
@@ -30,12 +31,29 @@ function degradedNotes(raw: string | null | undefined): string[] {
 export default function SongCard({
   song,
   onPlay,
+  onDeleted,
 }: {
   song: Song
   onPlay: (s: Song) => void
+  /** 删除成功后回调,调用方从列表里移掉这张卡片 */
+  onDeleted?: (id: string) => void
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
+  const [deleting, setDeleting] = useState(false)
+  const { current, stop } = usePlayer()
   const degraded = degradedNotes(song.llm_status)
+
+  async function handleDelete() {
+    if (!window.confirm(`确定删除《${song.title}》？此操作不可恢复。`)) return
+    setDeleting(true)
+    try {
+      await deleteSong(song.id)
+      if (current?.id === song.id) stop()
+      onDeleted?.(song.id)
+    } catch {
+      setDeleting(false)
+    }
+  }
   return (
     <div
       className="bg-panel"
@@ -118,12 +136,29 @@ export default function SongCard({
           style={{
             display: "flex",
             justifyContent: "space-between",
+            alignItems: "center",
             color: "var(--muted)",
             fontSize: 10.5,
           }}
         >
-          <span>@{song.created_by}</span>
           <span>{formatDuration(song.duration_sec)}</span>
+          <button
+            aria-label="删除"
+            onClick={handleDelete}
+            disabled={deleting}
+            title="删除这首歌"
+            style={{
+              border: "none",
+              background: "none",
+              color: "var(--muted)",
+              cursor: deleting ? "not-allowed" : "pointer",
+              fontSize: 13,
+              padding: 2,
+              opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            🗑
+          </button>
         </div>
       </div>
     </div>

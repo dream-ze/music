@@ -46,3 +46,9 @@ def upload_to_r2(local_path: str, key: str) -> str:
         ExtraArgs={"ContentType": "audio/mpeg"},
     )
     return f"{config.R2_PUBLIC_BASE.rstrip('/')}/{key}"
+
+
+def delete_from_r2(key: str) -> None:
+    """删 R2 上的文件。key 不存在时 S3 API 本身就是幂等的,不报错。"""
+    client = _r2_client()
+    client.delete_object(Bucket=config.R2_BUCKET, Key=key)

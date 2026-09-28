@@ -1,11 +1,44 @@
 import inspect
 import os
+import re
 import sys
 
 from src.presets import get_preset
 from src.spec import SongSpec
 
 _LENGTH_MAP = {"short": 45, "full": 210}
+
+# ── 按歌词估算时长 ────────────────────────────────────────────────
+# 结构标记行([Verse]/[Chorus]/...)不算唱词;中文按字、英文按单词计数
+# (英文单词平均音节更多,记 1.5 个"字")。说唱唱速更快。
+_TAG_LINE = re.compile(r"^\s*\[[^\]]*\]\s*$")
+_CJK_CHAR = re.compile(r"[一-鿿㐀-䶿]")
+_EN_WORD = re.compile(r"[A-Za-z0-9']+")
+_INTRO_OUTRO_SEC = 20
+_RATE_RAP = 3.5     # 字/秒
+_RATE_SUNG = 2.0    # 字/秒
+_MIN_DURATION = 30
+_MAX_DURATION = 240
+
+
+def _is_rap(spec: SongSpec) -> bool:
+    if spec.preset_id.startswith("hiphop"):
+        return True
+    tags = {t.lower() for t in (*spec.genre, *spec.mood)}
+    return bool(tags & {"rap", "hip hop", "hiphop", "trap"})
+
+
+def estimate_duration(structured_lyrics: str, spec: SongSpec) -> int:
+    """按歌词长度估算时长(秒):20s 前奏尾奏 + 唱词量/唱速,夹在 [30,240] 之间。"""
+    chars = 0.0
+    for line in (structured_lyrics or "").splitlines():
+        if _TAG_LINE.match(line):
+            continue
+        chars += len(_CJK_CHAR.findall(line))
+        chars += len(_EN_WORD.findall(line)) * 1.5
+    rate = _RATE_RAP if _is_rap(spec) else _RATE_SUNG
+    duration = _INTRO_OUTRO_SEC + chars / rate
+    return int(max(_MIN_DURATION, min(_MAX_DURATION, round(duration))))
 # ACE-Step 1.5 turbo 模型推荐推理步数=8（base 模型建议 32-64）。
 _INFER_STEP = 8
 # turbo 模型推荐 shift=3.0(官方评价:语义强、清晰,但偏"干"、配器极简)。
@@ -83,13 +116,18 @@ _dit_handler = None
 _llm_handler = None
 
 
-def build_acestep_params(spec: SongSpec, length: str = "full", seed: int | None = None) -> dict:
+def build_acestep_params(spec: SongSpec, structured_lyrics: str = "", *,
+                         length: str = "full", seed: int | None = None) -> dict:
     tags = [*spec.genre, *spec.mood, *spec.instrument,
             f"{spec.vocal.gender} vocal", spec.vocal.style]
     tag_string = ", ".join(t for t in tags if t)
     # 有 planner 写的英文整句就用它并关掉 LM 重写(DeepSeek 的音乐知识 ≫ 本机 0.6B);
     # 否则退回标签串并让 5Hz LM 扩写。
     caption = spec.caption or tag_string
+    if length == "auto":
+        duration = estimate_duration(structured_lyrics, spec)
+    else:
+        duration = _LENGTH_MAP.get(length, _LENGTH_MAP["full"])
     return {
         "prompt": caption,      # 兼容旧调用方
         "caption": caption,
@@ -97,7 +135,7 @@ def build_acestep_params(spec: SongSpec, length: str = "full", seed: int | None 
         "keyscale": spec.keyscale or "",
         "timesignature": str(spec.timesignature) if spec.timesignature else "",
         "shift": resolve_shift(spec.preset_id),
-        "duration": _LENGTH_MAP.get(length, _LENGTH_MAP["full"]),
+        "duration": duration,
         "bpm": spec.bpm,
         "language": spec.language,
         "seed": seed,
@@ -188,7 +226,7 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
         sys.path.insert(0, config.ACESTEP_PROJECT_ROOT)
     from acestep.inference import GenerationParams, GenerationConfig, generate_music
 
-    p = build_acestep_params(spec, length=length, seed=seed)
+    p = build_acestep_params(spec, structured_lyrics, length=length, seed=seed)
     dit, llm = _get_handlers()
 
     fixed = seed is not None

@@ -53,6 +53,10 @@ export async function toggleFavorite(id: string): Promise<boolean> {
   return r.favorite
 }
 
+export async function deleteSong(id: string): Promise<void> {
+  await req<{ deleted: boolean }>(`/api/songs/${id}`, { method: "DELETE" })
+}
+
 export async function getInspirations() {
   const r = await req<{ inspirations: Inspiration[] }>("/api/inspirations")
   return r.inspirations

@@ -18,7 +18,7 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
     """阻塞:成曲 → MP3 → R2 → 写库。返回 song dict。在线程池里跑。"""
     result = pipeline.make_song(
         payload["lyrics"], payload["feeling"],
-        length=payload.get("length", "full"),
+        length=payload.get("length", "auto"),
         seed=payload.get("seed"),
         overrides=payload.get("overrides") or {},
     )

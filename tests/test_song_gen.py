@@ -293,3 +293,36 @@ def test_get_handlers_applies_prefill_patch(monkeypatch):
 
     song_gen._get_handlers()
     assert getattr(cls._forward_pass, "_ze_prefill_patch", False) is True
+
+
+# ── 按歌词估算时长(length="auto") ──────────────────────────────────
+
+def test_estimate_duration_skips_tag_lines_and_counts_cjk():
+    from src.song_gen import estimate_duration
+    lyrics = "[Verse]\n" + "字" * 54 + "\n[Chorus]"
+    assert estimate_duration(lyrics, safe_spec()) == 20 + 54 // 2  # 47
+
+
+def test_estimate_duration_counts_english_words_at_1_5():
+    from src.song_gen import estimate_duration
+    # 词数少会撞 30s 下限,用足够多的词让公式本身生效
+    lyrics = " ".join(["hello"] * 30)  # 30 词 × 1.5 = 45
+    assert estimate_duration(lyrics, safe_spec()) == round(20 + 45 / 2)
+
+
+def test_estimate_duration_rap_preset_uses_faster_rate():
+    from src.song_gen import estimate_duration
+    lyrics = "字" * 313
+    assert estimate_duration(lyrics, _hiphop_spec()) == round(20 + 313 / 3.5)  # 109
+
+
+def test_estimate_duration_clamped_to_min_and_max():
+    from src.song_gen import estimate_duration
+    assert estimate_duration("", safe_spec()) == 30  # 下限
+    assert estimate_duration("字" * 886, safe_spec()) == 240  # 上限
+
+
+def test_length_auto_uses_estimate_duration():
+    lyrics = "[Verse]\n" + "字" * 100
+    p = build_acestep_params(safe_spec(), lyrics, length="auto")
+    assert p["duration"] == 20 + 100 // 2  # 70

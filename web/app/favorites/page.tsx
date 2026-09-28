@@ -18,7 +18,12 @@ export default function Favorites() {
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 18px" }}>我的收藏</h1>
       <div className="song-grid">
         {songs.map((s) => (
-          <SongCard key={s.id} song={s} onPlay={play} />
+          <SongCard
+            key={s.id}
+            song={s}
+            onPlay={play}
+            onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
+          />
         ))}
       </div>
       {songs.length === 0 && <p className="text-muted">还没有收藏</p>}

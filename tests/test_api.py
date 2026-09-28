@@ -127,3 +127,65 @@ def test_active_jobs_endpoint(monkeypatch, tmp_path):
     jobs = r.json()["jobs"]
     assert [j["job_id"] for j in jobs] == ["j1"]
     assert jobs[0]["title"] == "冬日甜心" and jobs[0]["status"] == "running"
+
+
+def test_generate_defaults_length_to_auto_and_rejects_unknown(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "len.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    captured = {}
+
+    class FakeQ:
+        async def enqueue(self, payload, created_by):
+            captured.update(payload)
+            db.create_job("jL", status="queued", position=1, created_by=created_by)
+            return "jL"
+    appmod.app.state.queue = FakeQ()
+
+    r = client.post("/api/generate", json={"lyrics": "词", "feeling": "女声"})
+    assert r.status_code == 200
+    assert captured["length"] == "auto"
+
+    r2 = client.post("/api/generate", json={"lyrics": "词", "feeling": "女声", "length": "slow"})
+    assert r2.status_code == 422
+
+
+def test_delete_song_removes_record_and_r2_file(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "del.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s1", "title": "旧歌", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s1.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+    deleted_keys = []
+    from server import routes
+    monkeypatch.setattr(routes.storage, "delete_from_r2", lambda key: deleted_keys.append(key))
+
+    r = client.delete("/api/songs/s1")
+    assert r.status_code == 200
+    assert r.json() == {"deleted": True}
+    assert deleted_keys == ["s1.mp3"]
+    assert db.get_song("s1") is None
+
+    r2 = client.delete("/api/songs/s1")
+    assert r2.status_code == 404
+
+
+def test_delete_song_ok_even_if_r2_delete_fails(monkeypatch, tmp_path):
+    """R2 删失败不应挡住删记录,否则前端会看到删不掉的歌。"""
+    from server import db, routes
+    db.init_db(str(tmp_path / "del2.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s2", "title": "旧歌", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s2.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+
+    def _boom(key):
+        raise RuntimeError("R2 挂了")
+    monkeypatch.setattr(routes.storage, "delete_from_r2", _boom)
+
+    r = client.delete("/api/songs/s2")
+    assert r.status_code == 200
+    assert db.get_song("s2") is None

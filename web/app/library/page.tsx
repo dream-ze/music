@@ -98,7 +98,12 @@ export default function Library() {
           <PendingCard key={j.job_id} job={j} />
         ))}
         {songs.map((s) => (
-          <SongCard key={s.id} song={s} onPlay={play} />
+          <SongCard
+            key={s.id}
+            song={s}
+            onPlay={play}
+            onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
+          />
         ))}
       </div>
       {songs.length === 0 && jobs.length === 0 && <p className="text-muted">还没有歌曲</p>}

@@ -1,7 +1,13 @@
-import { describe, it, expect, vi } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { describe, it, expect, vi, afterEach } from "vitest"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import SongCard from "@/components/SongCard"
+import { deleteSong } from "@/lib/api"
 import type { Song } from "@/lib/types"
+
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  deleteSong: vi.fn().mockResolvedValue(undefined),
+}))
 
 const song = {
   id: "s1",
@@ -13,6 +19,8 @@ const song = {
   favorite: 0,
 } as Song
 
+afterEach(() => vi.restoreAllMocks())
+
 describe("SongCard", () => {
   it("显示标题与时长,点击触发播放", () => {
     const onPlay = vi.fn()
@@ -21,6 +29,29 @@ describe("SongCard", () => {
     expect(screen.getByText("03:21")).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText("播放"))
     expect(onPlay).toHaveBeenCalledWith(song)
+  })
+
+  it("不再显示 @created_by", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    expect(screen.queryByText("@ze")).not.toBeInTheDocument()
+  })
+})
+
+describe("SongCard 删除", () => {
+  it("取消确认框不会调用删除接口", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false)
+    render(<SongCard song={song} onPlay={vi.fn()} onDeleted={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("删除"))
+    expect(deleteSong).not.toHaveBeenCalled()
+  })
+
+  it("确认后调用删除接口并回调 onDeleted", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const onDeleted = vi.fn()
+    render(<SongCard song={song} onPlay={vi.fn()} onDeleted={onDeleted} />)
+    fireEvent.click(screen.getByLabelText("删除"))
+    await waitFor(() => expect(deleteSong).toHaveBeenCalledWith("s1"))
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("s1"))
   })
 })
 

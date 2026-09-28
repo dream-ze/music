@@ -35,7 +35,7 @@ class GenerateRequest(BaseModel):
     # 用户自定义歌名;空 → 由 feeling/lyrics 自动命名。只是标签,不进 LLM/模型。
     title: str = ""
     feeling: str = ""
-    length: str = "full"      # full | short
+    length: str = "auto"      # auto(按歌词估算) | full | short(后两者只留给内部/测试用)
     seed: int | None = None
     instrumental: bool = False
     overrides: Overrides = Field(default_factory=Overrides)
@@ -44,3 +44,10 @@ class GenerateRequest(BaseModel):
     @classmethod
     def _clean_title(cls, v: str) -> str:
         return v.strip()[:TITLE_MAX]
+
+    @field_validator("length")
+    @classmethod
+    def _known_length(cls, v: str) -> str:
+        if v not in ("auto", "full", "short"):
+            raise ValueError("length must be auto/full/short")
+        return v

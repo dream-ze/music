@@ -92,6 +92,13 @@ def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
     return [dict(r) for r in rows]
 
 
+def delete_song(song_id: str) -> bool:
+    """删数据库记录,返回是否真的删到了(歌不存在时 False)。"""
+    with _conn() as c:
+        cur = c.execute("DELETE FROM songs WHERE id=?", (song_id,))
+        return cur.rowcount > 0
+
+
 def toggle_favorite(song_id: str) -> bool:
     with _conn() as c:
         c.execute("UPDATE songs SET favorite = 1 - favorite WHERE id=?", (song_id,))
