@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { listSongs, listActiveJobs, listCategories } from "@/lib/api"
 import SongCard from "@/components/SongCard"
 import PendingCard from "@/components/PendingCard"
+import CategoryFilterBar from "@/components/CategoryFilterBar"
 import { usePlayer } from "@/lib/player"
 import { UNCATEGORIZED, type Song, type ActiveJob, type Category } from "@/lib/types"
 
@@ -110,6 +111,11 @@ function LibraryContent() {
           "大家用 AI 创作的所有歌曲"
         )}
       </p>
+      <CategoryFilterBar
+        categories={categories}
+        active={cat}
+        onSelect={(next) => router.push(next ? `/library?cat=${encodeURIComponent(next)}` : "/library")}
+      />
       <div className="search-row">
         <input
           value={q}

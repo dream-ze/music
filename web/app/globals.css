@@ -213,6 +213,11 @@ textarea::placeholder {
   display: flex;
   gap: 20px;
 }
+/* 手机端分类筛选入口:桌面端侧栏已经有同样的功能,默认隐藏,
+   只在 .app-sidebar 消失的窄屏断点里显示(见下面 768px 媒体查询) */
+.mobile-category-bar {
+  display: none;
+}
 .player-audio {
   flex: 1;
   min-width: 0;
@@ -229,6 +234,14 @@ textarea::placeholder {
   .app-sidebar,
   .nav-avatar {
     display: none;
+  }
+  .mobile-category-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    margin-bottom: 14px;
   }
   .app-nav {
     gap: 14px !important;
