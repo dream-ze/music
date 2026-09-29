@@ -76,15 +76,38 @@ export default function SongCard({
   return (
     <div
       className="bg-panel"
-      draggable
+      draggable={!deleting}
       onDragStart={(e) => e.dataTransfer.setData(SONG_DRAG_MIME, song.id)}
       style={{
+        position: "relative",
         borderRadius: 12,
         overflow: "hidden",
         border: "1px solid var(--line)",
-        cursor: "grab",
+        cursor: deleting ? "default" : "grab",
       }}
     >
+      {deleting && (
+        // R2 删除是个真实的网络请求,快也要几百毫秒;不加这层提示,
+        // 用户点了删除又看不出反应,会以为卡住了
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            background: "rgba(255,255,255,.72)",
+            color: "var(--muted)",
+            fontSize: 12.5,
+            fontWeight: 600,
+          }}
+        >
+          <span className="pending-spinner" aria-hidden />
+          删除中…
+        </div>
+      )}
       <div
         style={{
           height: 120,

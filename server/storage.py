@@ -26,16 +26,22 @@ def probe_duration(path: str) -> float:
         return 0.0
 
 
+_client = None  # 进程内只建一次,复用底层连接池;每次都新建的话每次操作都要重新走一遍 TCP+TLS 握手
+
+
 def _r2_client():
-    import boto3
-    endpoint = f"https://{config.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-    return boto3.client(
-        "s3",
-        endpoint_url=endpoint,
-        aws_access_key_id=config.R2_ACCESS_KEY,
-        aws_secret_access_key=config.R2_SECRET_KEY,
-        region_name="auto",
-    )
+    global _client
+    if _client is None:
+        import boto3
+        endpoint = f"https://{config.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+        _client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=config.R2_ACCESS_KEY,
+            aws_secret_access_key=config.R2_SECRET_KEY,
+            region_name="auto",
+        )
+    return _client
 
 
 def upload_to_r2(local_path: str, key: str) -> str:

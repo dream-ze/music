@@ -101,6 +101,13 @@ describe("SongCard 删除", () => {
     await waitFor(() => expect(deleteSong).toHaveBeenCalledWith("s1"))
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("s1"))
   })
+
+  it("接口还没返回时显示“删除中…”,接口是真实网络请求,不给提示会像卡住", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("删除"))
+    expect(screen.getByText("删除中…")).toBeInTheDocument()
+  })
 })
 
 describe("SongCard 降级标记", () => {
