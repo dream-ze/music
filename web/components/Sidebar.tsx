@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useSearchParams, useRouter } from "next/navigation"
-import { listCategories, createCategory, deleteCategory, setSongCategory } from "@/lib/api"
+import { listCategories, createCategory, deleteCategory, addSongToCategory } from "@/lib/api"
 import { UNCATEGORIZED, SONG_DRAG_MIME, type Category } from "@/lib/types"
 
 const items = [
@@ -84,12 +84,13 @@ function SidebarContent() {
     }
   }
 
-  function handleDrop(e: React.DragEvent, catId: string | null) {
+  function handleDrop(e: React.DragEvent, catId: string) {
     e.preventDefault()
     setDragOver(null)
     const songId = e.dataTransfer.getData(SONG_DRAG_MIME)
     if (!songId) return
-    setSongCategory(songId, catId)
+    // 拖过去 = 加进这个分类,不会把歌从其他分类里挪走(一首歌能同时属于好几个)
+    addSongToCategory(songId, catId)
       .then(load)
       .catch(() => {})
   }
@@ -154,15 +155,11 @@ function SidebarContent() {
         分类 · 把歌拖到这里
       </p>
 
+      {/* 未分类只用来筛选,不接收拖拽——一首歌能同时在好几个分类里,
+          "拖到未分类"已经没有唯一确定的含义(退出哪一个?全部退出?) */}
       <div
         role="button"
         onClick={() => goToCategory(UNCATEGORIZED)}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragOver(UNCATEGORIZED)
-        }}
-        onDragLeave={() => setDragOver(null)}
-        onDrop={(e) => handleDrop(e, null)}
         style={rowStyle(UNCATEGORIZED, activeCat === UNCATEGORIZED)}
       >
         未分类

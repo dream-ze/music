@@ -147,14 +147,19 @@ function LibraryContent() {
             onPlay={play}
             categories={categories}
             onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
-            onCategoryChanged={(id, newCat) => {
-              // 正按分类筛选时,挪去别的分类(或挪出/挪入未分类)的歌要从当前列表里消失
-              const newKey = newCat || UNCATEGORIZED
-              if (cat && newKey !== cat) {
-                setSongs((cur) => cur.filter((x) => x.id !== id))
+            onCategoryChanged={(id, newCategoryIds) => {
+              // 正按分类筛选时,不再属于当前这个分类的歌要从列表里消失
+              // (一首歌能同时属于好几个分类,所以要看它是否还留在当前筛选的这个里)
+              if (cat) {
+                const stillMatches =
+                  cat === UNCATEGORIZED ? newCategoryIds.length === 0 : newCategoryIds.includes(cat)
+                if (!stillMatches) {
+                  setSongs((cur) => cur.filter((x) => x.id !== id))
+                }
               }
               listCategories().then(setCategories).catch(() => {})
             }}
+            onCategoriesChanged={() => listCategories().then(setCategories).catch(() => {})}
           />
         ))}
       </div>

@@ -35,6 +35,10 @@ def init_db(path: str | None = None) -> None:
             CREATE TABLE IF NOT EXISTS categories (
               id TEXT PRIMARY KEY, name TEXT, created_by TEXT, created_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS song_categories (
+              song_id TEXT, category_id TEXT,
+              PRIMARY KEY (song_id, category_id)
+            );
             """
         )
         _migrate(c)
@@ -51,8 +55,14 @@ def _migrate(c: sqlite3.Connection) -> None:
         if col not in jcols:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
     if "category_id" not in cols:
-        # 一首歌只属于一个自定义分类;NULL = 未分类
+        # 老版本一首歌只能属于一个分类;这一列不再写入,只保留给下面的迁移读一次
         c.execute("ALTER TABLE songs ADD COLUMN category_id TEXT")
+    else:
+        # 上一版单分类模型已经上线过,把老数据搬进多对多关联表,避免真的丢了归类
+        c.execute(
+            "INSERT OR IGNORE INTO song_categories (song_id, category_id) "
+            "SELECT id, category_id FROM songs WHERE category_id IS NOT NULL"
+        )
 
 
 def _now() -> str:
@@ -75,7 +85,31 @@ def insert_song(song: dict) -> None:
 def get_song(song_id: str) -> dict | None:
     with _conn() as c:
         row = c.execute("SELECT * FROM songs WHERE id=?", (song_id,)).fetchone()
-    return dict(row) if row else None
+        if not row:
+            return None
+        song = dict(row)
+        song["category_ids"] = [
+            r["category_id"] for r in
+            c.execute("SELECT category_id FROM song_categories WHERE song_id=?", (song_id,))
+        ]
+    return song
+
+
+def _attach_category_ids(c: sqlite3.Connection, songs: list[dict]) -> None:
+    """给一批歌曲字典就地加上各自的 category_ids(一首歌可以同时属于多个分类)。"""
+    if not songs:
+        return
+    ids = [s["id"] for s in songs]
+    placeholders = ",".join("?" * len(ids))
+    rows = c.execute(
+        f"SELECT song_id, category_id FROM song_categories WHERE song_id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    by_song: dict[str, list[str]] = {sid: [] for sid in ids}
+    for r in rows:
+        by_song[r["song_id"]].append(r["category_id"])
+    for s in songs:
+        s["category_ids"] = by_song.get(s["id"], [])
 
 
 def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
@@ -90,9 +124,12 @@ def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
         where.append("created_by=?")
         args.append(mine)
     if category == "__none__":
-        where.append("category_id IS NULL")
+        where.append("NOT EXISTS (SELECT 1 FROM song_categories sc WHERE sc.song_id = songs.id)")
     elif category:
-        where.append("category_id=?")
+        where.append(
+            "EXISTS (SELECT 1 FROM song_categories sc "
+            "WHERE sc.song_id = songs.id AND sc.category_id = ?)"
+        )
         args.append(category)
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     args += [limit, offset]
@@ -101,7 +138,9 @@ def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
             f"SELECT * FROM songs {clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
             args,
         ).fetchall()
-    return [dict(r) for r in rows]
+        songs = [dict(r) for r in rows]
+        _attach_category_ids(c, songs)
+    return songs
 
 
 def delete_song(song_id: str) -> bool:
@@ -122,12 +161,15 @@ def create_category(name: str, created_by: str) -> dict:
 
 
 def list_categories() -> list[dict]:
-    """所有分类,附带各自的歌曲数(未分类不在这张表里,由前端固定一条"未分类"入口)。"""
+    """所有分类,附带各自的歌曲数。一首歌能同时在好几个分类里,
+    所以这里的计数加总可能超过歌曲总数,这是符合预期的。
+    (未分类不在这张表里,由前端固定一条"未分类"入口。)
+    """
     with _conn() as c:
         rows = c.execute(
             "SELECT c.id, c.name, c.created_by, c.created_at, "
-            "COUNT(s.id) AS song_count "
-            "FROM categories c LEFT JOIN songs s ON s.category_id = c.id "
+            "COUNT(sc.song_id) AS song_count "
+            "FROM categories c LEFT JOIN song_categories sc ON sc.category_id = c.id "
             "GROUP BY c.id ORDER BY c.created_at"
         ).fetchall()
     return [dict(r) for r in rows]
@@ -140,18 +182,37 @@ def get_category(category_id: str) -> dict | None:
 
 
 def delete_category(category_id: str) -> bool:
-    """删分类本身;归在它下面的歌不删,category_id 清空回到"未分类"。"""
+    """删分类本身;归在它下面的歌不删,只是从这个分类里移出(可能还在别的分类里)。"""
     with _conn() as c:
-        c.execute("UPDATE songs SET category_id=NULL WHERE category_id=?", (category_id,))
+        c.execute("DELETE FROM song_categories WHERE category_id=?", (category_id,))
         cur = c.execute("DELETE FROM categories WHERE id=?", (category_id,))
         return cur.rowcount > 0
 
 
-def set_song_category(song_id: str, category_id: str | None) -> bool:
-    """把歌拖进(或移出,category_id=None)一个分类。返回歌是否存在。"""
+def add_song_to_category(song_id: str, category_id: str) -> None:
+    """把歌加进一个分类;已经在里面就什么都不做(不会重复、不报错)。"""
     with _conn() as c:
-        cur = c.execute("UPDATE songs SET category_id=? WHERE id=?", (category_id, song_id))
-        return cur.rowcount > 0
+        c.execute(
+            "INSERT OR IGNORE INTO song_categories (song_id, category_id) VALUES (?,?)",
+            (song_id, category_id),
+        )
+
+
+def remove_song_from_category(song_id: str, category_id: str) -> None:
+    """把歌从一个分类里移出;只影响这一个分类,歌在其他分类里的归属不变。"""
+    with _conn() as c:
+        c.execute(
+            "DELETE FROM song_categories WHERE song_id=? AND category_id=?",
+            (song_id, category_id),
+        )
+
+
+def get_song_category_ids(song_id: str) -> list[str]:
+    with _conn() as c:
+        return [
+            r["category_id"] for r in
+            c.execute("SELECT category_id FROM song_categories WHERE song_id=?", (song_id,))
+        ]
 
 
 def toggle_favorite(song_id: str) -> bool:

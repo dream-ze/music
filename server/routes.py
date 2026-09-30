@@ -63,15 +63,23 @@ def favorite(song_id: str, who: str = Depends(require_passcode)):
     return {"favorite": db.toggle_favorite(song_id)}
 
 
-@router.post("/songs/{song_id}/category")
-def set_song_category(song_id: str, body: models.SongCategoryUpdate,
-                      who: str = Depends(require_passcode)):
+@router.put("/songs/{song_id}/categories/{category_id}")
+def add_to_category(song_id: str, category_id: str, who: str = Depends(require_passcode)):
+    """把歌加进一个分类;一首歌能同时在好几个分类里,这里只加不换。"""
     if not db.get_song(song_id):
         raise HTTPException(404, "歌曲不存在")
-    if body.category_id is not None and not db.get_category(body.category_id):
+    if not db.get_category(category_id):
         raise HTTPException(404, "分类不存在")
-    db.set_song_category(song_id, body.category_id)
-    return {"category_id": body.category_id}
+    db.add_song_to_category(song_id, category_id)
+    return {"category_ids": db.get_song_category_ids(song_id)}
+
+
+@router.delete("/songs/{song_id}/categories/{category_id}")
+def remove_from_category(song_id: str, category_id: str, who: str = Depends(require_passcode)):
+    if not db.get_song(song_id):
+        raise HTTPException(404, "歌曲不存在")
+    db.remove_song_from_category(song_id, category_id)
+    return {"category_ids": db.get_song_category_ids(song_id)}
 
 
 @router.get("/categories")

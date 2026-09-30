@@ -66,8 +66,3 @@ class CategoryCreate(BaseModel):
         if not v:
             raise ValueError("name must not be blank")
         return v
-
-
-class SongCategoryUpdate(BaseModel):
-    # None = 移出分类,回到未分类
-    category_id: str | None = None

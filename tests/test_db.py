@@ -125,7 +125,7 @@ def test_list_active_jobs_only_queued_running_in_order(tmp_path):
     assert set(active[0]) == {"job_id", "status", "title", "feeling", "created_by", "created_at"}
 
 
-# ── 自定义分类 ────────────────────────────────────────────────────
+# ── 自定义分类(多对多:一首歌能同时属于好几个分类,跟网易云歌单一样)────
 
 def test_create_and_list_categories(tmp_path):
     db.init_db(str(tmp_path / "cat.db"))
@@ -137,47 +137,74 @@ def test_create_and_list_categories(tmp_path):
     assert cats[0]["song_count"] == 0
 
 
-def test_set_song_category_and_filter(tmp_path):
+def test_add_song_to_multiple_categories_and_filter(tmp_path):
     db.init_db(str(tmp_path / "cat2.db"))
-    cat = db.create_category("民谣", "ze")
+    folk = db.create_category("民谣", "ze")
+    night = db.create_category("深夜", "ze")
     db.insert_song(_song(id="s1"))
     db.insert_song(_song(id="s2"))
-    assert db.set_song_category("s1", cat["id"]) is True
-    assert db.get_song("s1")["category_id"] == cat["id"]
 
-    in_cat = db.list_songs(category=cat["id"])
-    assert [s["id"] for s in in_cat] == ["s1"]
+    db.add_song_to_category("s1", folk["id"])
+    db.add_song_to_category("s1", night["id"])  # s1 同时属于两个分类
+    assert set(db.get_song("s1")["category_ids"]) == {folk["id"], night["id"]}
+    assert set(db.get_song_category_ids("s1")) == {folk["id"], night["id"]}
+
+    in_folk = db.list_songs(category=folk["id"])
+    assert [s["id"] for s in in_folk] == ["s1"]
+    assert in_folk[0]["category_ids"] and set(in_folk[0]["category_ids"]) == {folk["id"], night["id"]}
 
     uncategorized = db.list_songs(category="__none__")
     assert [s["id"] for s in uncategorized] == ["s2"]
+    assert uncategorized[0]["category_ids"] == []
 
-    cats = db.list_categories()
-    assert cats[0]["song_count"] == 1
+    cats = {c["id"]: c["song_count"] for c in db.list_categories()}
+    assert cats[folk["id"]] == 1 and cats[night["id"]] == 1
 
 
-def test_set_song_category_unknown_song_returns_false(tmp_path):
+def test_remove_song_from_one_category_keeps_the_other(tmp_path):
     db.init_db(str(tmp_path / "cat3.db"))
-    assert db.set_song_category("nope", None) is False
+    folk = db.create_category("民谣", "ze")
+    night = db.create_category("深夜", "ze")
+    db.insert_song(_song(id="s1"))
+    db.add_song_to_category("s1", folk["id"])
+    db.add_song_to_category("s1", night["id"])
+
+    db.remove_song_from_category("s1", folk["id"])
+    assert db.get_song_category_ids("s1") == [night["id"]]
 
 
-def test_delete_category_unsets_songs_but_keeps_them(tmp_path):
+def test_add_song_to_category_twice_is_a_no_op(tmp_path):
+    """重复加进同一个分类不报错、不重复计数。"""
     db.init_db(str(tmp_path / "cat4.db"))
     cat = db.create_category("民谣", "ze")
     db.insert_song(_song(id="s1"))
-    db.set_song_category("s1", cat["id"])
+    db.add_song_to_category("s1", cat["id"])
+    db.add_song_to_category("s1", cat["id"])
+    assert db.get_song_category_ids("s1") == [cat["id"]]
+    assert db.list_categories()[0]["song_count"] == 1
 
-    assert db.delete_category(cat["id"]) is True
-    assert db.get_song("s1")["category_id"] is None
-    assert db.list_categories() == []
+
+def test_delete_category_removes_membership_but_keeps_song_and_other_memberships(tmp_path):
+    db.init_db(str(tmp_path / "cat5.db"))
+    folk = db.create_category("民谣", "ze")
+    night = db.create_category("深夜", "ze")
+    db.insert_song(_song(id="s1"))
+    db.add_song_to_category("s1", folk["id"])
+    db.add_song_to_category("s1", night["id"])
+
+    assert db.delete_category(folk["id"]) is True
+    assert db.get_song_category_ids("s1") == [night["id"]]
+    assert db.get_song("s1") is not None
+    assert {c["id"] for c in db.list_categories()} == {night["id"]}
 
 
 def test_delete_category_unknown_returns_false(tmp_path):
-    db.init_db(str(tmp_path / "cat5.db"))
+    db.init_db(str(tmp_path / "cat6.db"))
     assert db.delete_category("nope") is False
 
 
-def test_songs_table_migrates_category_id(tmp_path):
-    """老库的 songs 表没有 category_id 列,启动时要自动补上。"""
+def test_songs_table_migrates_category_id_column(tmp_path):
+    """老库的 songs 表没有 category_id 列,启动时要自动补上(即使不再写它)。"""
     import sqlite3
     p = str(tmp_path / "oldsongs.db")
     with sqlite3.connect(p) as c:
@@ -187,4 +214,23 @@ def test_songs_table_migrates_category_id(tmp_path):
                   "created_by TEXT, favorite INTEGER DEFAULT 0, created_at TEXT)")
     db.init_db(p)
     db.insert_song(_song(id="s1"))
-    assert db.get_song("s1")["category_id"] is None
+    assert db.get_song("s1")["category_ids"] == []
+
+
+def test_old_single_category_data_gets_backfilled_into_song_categories(tmp_path):
+    """上一版单分类模型已经上线过;老数据(songs.category_id)不能凭空消失,
+    启动时要一次性搬进新的多对多关联表。"""
+    import sqlite3
+    p = str(tmp_path / "legacy.db")
+    with sqlite3.connect(p) as c:
+        c.execute("CREATE TABLE songs (id TEXT PRIMARY KEY, title TEXT, lyrics TEXT, "
+                  "feeling TEXT, spec_json TEXT, structured_lyrics TEXT, seed INTEGER, "
+                  "mp3_url TEXT, duration_sec REAL, instrumental INTEGER DEFAULT 0, "
+                  "created_by TEXT, favorite INTEGER DEFAULT 0, created_at TEXT, "
+                  "category_id TEXT)")
+        c.execute("CREATE TABLE categories (id TEXT PRIMARY KEY, name TEXT, "
+                  "created_by TEXT, created_at TEXT)")
+        c.execute("INSERT INTO categories VALUES ('c1','民谣','ze','t')")
+        c.execute("INSERT INTO songs (id, category_id) VALUES ('s1','c1')")
+    db.init_db(p)
+    assert db.get_song_category_ids("s1") == ["c1"]

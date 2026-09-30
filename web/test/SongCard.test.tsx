@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import SongCard from "@/components/SongCard"
-import { deleteSong, setSongCategory } from "@/lib/api"
+import { deleteSong, addSongToCategory, removeSongFromCategory, createCategory } from "@/lib/api"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   deleteSong: vi.fn().mockResolvedValue(undefined),
-  setSongCategory: vi.fn().mockResolvedValue(undefined),
+  addSongToCategory: vi.fn().mockResolvedValue([]),
+  removeSongFromCategory: vi.fn().mockResolvedValue([]),
+  createCategory: vi.fn(),
 }))
 
 const song = {
@@ -47,23 +49,26 @@ describe("SongCard", () => {
   })
 })
 
-describe("SongCard 归类", () => {
+describe("SongCard 归类(多对多,跟网易云歌单一样)", () => {
   const categories: Category[] = [
     { id: "c1", name: "民谣", created_by: "ze", created_at: "", song_count: 1 },
     { id: "c2", name: "说唱", created_by: "ze", created_at: "", song_count: 0 },
   ]
 
-  it("不传 categories 时不显示归类下拉框", () => {
-    render(<SongCard song={song} onPlay={vi.fn()} />)
-    expect(screen.queryByLabelText("分类")).toBeNull()
-  })
-
-  it("传 categories 时显示下拉框,默认选中未分类", () => {
+  it("没有归类时只显示「+ 分类」,不显示任何标签", () => {
     render(<SongCard song={song} onPlay={vi.fn()} categories={categories} />)
-    expect(screen.getByLabelText("分类")).toHaveValue("")
+    expect(screen.getByLabelText("添加到分类")).toBeInTheDocument()
+    expect(screen.queryByText("民谣")).toBeNull()
   })
 
-  it("选择分类会调用接口并回调 onCategoryChanged", async () => {
+  it("已归类的歌在卡片上直接显示标签(不用打开面板就能看到)", () => {
+    const tagged = { ...song, category_ids: ["c1", "c2"] } as Song
+    render(<SongCard song={tagged} onPlay={vi.fn()} categories={categories} />)
+    expect(screen.getByText("民谣")).toBeInTheDocument()
+    expect(screen.getByText("说唱")).toBeInTheDocument()
+  })
+
+  it("点「+ 分类」打开面板,勾选后调用添加接口、卡片上出现标签", async () => {
     const onCategoryChanged = vi.fn()
     render(
       <SongCard
@@ -73,15 +78,44 @@ describe("SongCard 归类", () => {
         onCategoryChanged={onCategoryChanged}
       />
     )
-    fireEvent.change(screen.getByLabelText("分类"), { target: { value: "c1" } })
-    await waitFor(() => expect(setSongCategory).toHaveBeenCalledWith("s1", "c1"))
-    await waitFor(() => expect(onCategoryChanged).toHaveBeenCalledWith("s1", "c1"))
+    fireEvent.click(screen.getByLabelText("添加到分类"))
+    fireEvent.click(screen.getAllByText("民谣")[0].closest("label")!.querySelector("input")!)
+    await waitFor(() => expect(addSongToCategory).toHaveBeenCalledWith("s1", "c1"))
+    await waitFor(() => expect(onCategoryChanged).toHaveBeenCalledWith("s1", ["c1"]))
   })
 
-  it("已有分类的歌显示当前选中项", () => {
-    const categorized = { ...song, category_id: "c2" } as Song
-    render(<SongCard song={categorized} onPlay={vi.fn()} categories={categories} />)
-    expect(screen.getByLabelText("分类")).toHaveValue("c2")
+  it("再次勾选(取消)已选中的分类会调用移除接口,两个分类互不影响", async () => {
+    const tagged = { ...song, category_ids: ["c1", "c2"] } as Song
+    render(<SongCard song={tagged} onPlay={vi.fn()} categories={categories} />)
+    fireEvent.click(screen.getByLabelText("添加到分类"))
+    const folkCheckbox = screen.getAllByText("民谣")
+      .map((el) => el.closest("label"))
+      .find((el) => el?.querySelector("input"))!
+      .querySelector("input")!
+    fireEvent.click(folkCheckbox)
+    await waitFor(() => expect(removeSongFromCategory).toHaveBeenCalledWith("s1", "c1"))
+    // 说唱(c2)不受影响,卡片上还留着
+    expect(screen.getAllByText("说唱").length).toBeGreaterThan(0)
+  })
+
+  it("面板里可以直接新建分类,不用去侧栏", async () => {
+    vi.mocked(createCategory).mockResolvedValue({
+      id: "c3", name: "治愈", created_by: "ze", created_at: "", song_count: 0,
+    })
+    const onCategoriesChanged = vi.fn()
+    render(
+      <SongCard
+        song={song}
+        onPlay={vi.fn()}
+        categories={categories}
+        onCategoriesChanged={onCategoriesChanged}
+      />
+    )
+    fireEvent.click(screen.getByLabelText("添加到分类"))
+    fireEvent.change(screen.getByPlaceholderText("+ 新建分类"), { target: { value: "治愈" } })
+    fireEvent.click(screen.getByText("确定"))
+    await waitFor(() => expect(createCategory).toHaveBeenCalledWith("治愈"))
+    await waitFor(() => expect(onCategoriesChanged).toHaveBeenCalled())
   })
 })
 

@@ -5,7 +5,7 @@ import {
   listCategories,
   createCategory,
   deleteCategory,
-  setSongCategory,
+  addSongToCategory,
 } from "@/lib/api"
 import { SONG_DRAG_MIME } from "@/lib/types"
 
@@ -16,7 +16,7 @@ vi.mock("@/lib/api", () => ({
   listCategories: vi.fn(),
   createCategory: vi.fn(),
   deleteCategory: vi.fn(),
-  setSongCategory: vi.fn(),
+  addSongToCategory: vi.fn(),
 }))
 vi.mock("next/navigation", () => ({
   usePathname: () => "/library",
@@ -85,23 +85,22 @@ describe("Sidebar 自定义分类", () => {
     expect(deleteCategory).not.toHaveBeenCalled()
   })
 
-  it("把歌拖到分类项上会调用归类接口", async () => {
+  it("把歌拖到分类项上是「加进去」,不是「挪过去」", async () => {
     vi.mocked(listCategories).mockResolvedValue(categories)
-    vi.mocked(setSongCategory).mockResolvedValue(undefined)
+    vi.mocked(addSongToCategory).mockResolvedValue(["c1"])
     render(<Sidebar />)
     await waitFor(() => screen.getByText("民谣"))
     const dataTransfer = { getData: (t: string) => (t === SONG_DRAG_MIME ? "s1" : "") }
     fireEvent.drop(screen.getByText("民谣"), { dataTransfer })
-    await waitFor(() => expect(setSongCategory).toHaveBeenCalledWith("s1", "c1"))
+    await waitFor(() => expect(addSongToCategory).toHaveBeenCalledWith("s1", "c1"))
   })
 
-  it("把歌拖到未分类上会取消归类(category_id=null)", async () => {
+  it("未分类只能点击筛选,不接收拖拽(一首歌能同时属于好几个分类,拖过去没有唯一含义)", async () => {
     vi.mocked(listCategories).mockResolvedValue(categories)
-    vi.mocked(setSongCategory).mockResolvedValue(undefined)
     render(<Sidebar />)
     await waitFor(() => screen.getByText("未分类"))
     const dataTransfer = { getData: (t: string) => (t === SONG_DRAG_MIME ? "s1" : "") }
     fireEvent.drop(screen.getByText("未分类"), { dataTransfer })
-    await waitFor(() => expect(setSongCategory).toHaveBeenCalledWith("s1", null))
+    expect(addSongToCategory).not.toHaveBeenCalled()
   })
 })

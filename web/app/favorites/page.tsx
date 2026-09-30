@@ -26,6 +26,7 @@ export default function Favorites() {
             onPlay={play}
             categories={categories}
             onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
+            onCategoriesChanged={() => listCategories().then(setCategories).catch(() => {})}
           />
         ))}
       </div>

@@ -1,9 +1,10 @@
 "use client"
 import { useState } from "react"
-import { toggleFavorite, deleteSong, setSongCategory } from "@/lib/api"
+import { toggleFavorite, deleteSong, addSongToCategory, removeSongFromCategory } from "@/lib/api"
 import { formatDuration } from "@/lib/format"
 import { usePlayer } from "@/lib/player"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
+import CategoryPicker from "./CategoryPicker"
 
 const REASON_TEXT: Record<string, string> = {
   llm_error: "模型调用失败",
@@ -34,19 +35,24 @@ export default function SongCard({
   onDeleted,
   categories = [],
   onCategoryChanged,
+  onCategoriesChanged,
 }: {
   song: Song
   onPlay: (s: Song) => void
   /** 删除成功后回调,调用方从列表里移掉这张卡片 */
   onDeleted?: (id: string) => void
-  /** 归类下拉框的选项;不传就不显示下拉框(拖拽仍然可用) */
+  /** "添加到分类"面板的选项列表 */
   categories?: Category[]
-  /** 归类改变后回调(比如正在按分类筛选时,挪走了就该从列表里消失) */
-  onCategoryChanged?: (songId: string, categoryId: string | null) => void
+  /** 这首歌的归类变了(加入/移出某个分类)——比如正按分类筛选时,
+   * 移出当前分类就该从列表里消失 */
+  onCategoryChanged?: (songId: string, categoryIds: string[]) => void
+  /** 面板里新建了一个分类,调用方借机刷新分类列表(含新的这一条和最新计数) */
+  onCategoriesChanged?: () => void
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
   const [deleting, setDeleting] = useState(false)
-  const [categoryId, setCategoryId] = useState(song.category_id ?? "")
+  const [categoryIds, setCategoryIds] = useState<string[]>(song.category_ids ?? [])
+  const [pickerOpen, setPickerOpen] = useState(false)
   const { current, stop } = usePlayer()
   const degraded = degradedNotes(song.llm_status)
 
@@ -62,16 +68,20 @@ export default function SongCard({
     }
   }
 
-  async function handleCategoryChange(value: string) {
-    const prev = categoryId
-    setCategoryId(value)
+  async function handleToggleCategory(categoryId: string) {
+    const has = categoryIds.includes(categoryId)
+    const next = has ? categoryIds.filter((id) => id !== categoryId) : [...categoryIds, categoryId]
+    setCategoryIds(next)
     try {
-      await setSongCategory(song.id, value || null)
-      onCategoryChanged?.(song.id, value || null)
+      if (has) await removeSongFromCategory(song.id, categoryId)
+      else await addSongToCategory(song.id, categoryId)
+      onCategoryChanged?.(song.id, next)
     } catch {
-      setCategoryId(prev)
+      setCategoryIds(categoryIds)
     }
   }
+
+  const assignedCategories = categories.filter((c) => categoryIds.includes(c.id))
 
   return (
     <div
@@ -181,30 +191,53 @@ export default function SongCard({
         <div className="text-muted" style={{ fontSize: 10.5, marginBottom: 7 }}>
           {song.feeling}
         </div>
-        {categories.length > 0 && (
-          <select
-            aria-label="分类"
-            value={categoryId}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 4,
+            marginBottom: 7,
+          }}
+        >
+          {assignedCategories.map((c) => (
+            <span
+              key={c.id}
+              style={{
+                fontSize: 10,
+                padding: "2px 7px",
+                borderRadius: 10,
+                background: "rgba(47,107,216,.12)",
+                color: "var(--brand)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {c.name}
+            </span>
+          ))}
+          <button
+            aria-label="添加到分类"
+            onClick={() => setPickerOpen(true)}
             style={{
-              width: "100%",
-              fontSize: 10.5,
-              marginBottom: 7,
-              padding: "3px 6px",
-              borderRadius: 6,
-              border: "1px solid var(--line)",
-              background: "var(--field)",
+              fontSize: 10,
+              padding: "2px 7px",
+              borderRadius: 10,
+              border: "1px dashed var(--line)",
+              background: "none",
               color: "var(--muted)",
+              cursor: "pointer",
             }}
           >
-            <option value="">未分类</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            + 分类
+          </button>
+        </div>
+        {pickerOpen && (
+          <CategoryPicker
+            categories={categories}
+            selectedIds={categoryIds}
+            onToggle={handleToggleCategory}
+            onClose={() => setPickerOpen(false)}
+            onCategoriesChanged={onCategoriesChanged}
+          />
         )}
         <div
           style={{

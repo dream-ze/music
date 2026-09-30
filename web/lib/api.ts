@@ -74,11 +74,20 @@ export async function deleteCategory(id: string): Promise<void> {
   await req<{ deleted: boolean }>(`/api/categories/${id}`, { method: "DELETE" })
 }
 
-export async function setSongCategory(songId: string, categoryId: string | null): Promise<void> {
-  await req<{ category_id: string | null }>(`/api/songs/${songId}/category`, {
-    method: "POST",
-    body: JSON.stringify({ category_id: categoryId }),
-  })
+export async function addSongToCategory(songId: string, categoryId: string): Promise<string[]> {
+  const r = await req<{ category_ids: string[] }>(
+    `/api/songs/${songId}/categories/${categoryId}`,
+    { method: "PUT" }
+  )
+  return r.category_ids
+}
+
+export async function removeSongFromCategory(songId: string, categoryId: string): Promise<string[]> {
+  const r = await req<{ category_ids: string[] }>(
+    `/api/songs/${songId}/categories/${categoryId}`,
+    { method: "DELETE" }
+  )
+  return r.category_ids
 }
 
 export async function getInspirations() {

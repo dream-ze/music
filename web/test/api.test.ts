@@ -90,13 +90,24 @@ describe("api 自定义分类", () => {
     expect(opts.method).toBe("DELETE")
   })
 
-  it("setSongCategory 发 POST 带 category_id", async () => {
-    const f = mockFetch({ category_id: "c1" })
+  it("addSongToCategory 发 PUT 到 categories/{id}", async () => {
+    const f = mockFetch({ category_ids: ["c1"] })
     vi.stubGlobal("fetch", f)
-    await api.setSongCategory("s1", "c1")
+    const ids = await api.addSongToCategory("s1", "c1")
+    expect(ids).toEqual(["c1"])
     const [url, opts] = f.mock.calls[0]
-    expect(String(url)).toContain("/api/songs/s1/category")
-    expect(JSON.parse(opts.body)).toEqual({ category_id: "c1" })
+    expect(String(url)).toContain("/api/songs/s1/categories/c1")
+    expect(opts.method).toBe("PUT")
+  })
+
+  it("removeSongFromCategory 发 DELETE 到 categories/{id}", async () => {
+    const f = mockFetch({ category_ids: [] })
+    vi.stubGlobal("fetch", f)
+    const ids = await api.removeSongFromCategory("s1", "c1")
+    expect(ids).toEqual([])
+    const [url, opts] = f.mock.calls[0]
+    expect(String(url)).toContain("/api/songs/s1/categories/c1")
+    expect(opts.method).toBe("DELETE")
   })
 
   it("listSongs 带 category 参数", async () => {

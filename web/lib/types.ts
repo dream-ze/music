@@ -14,8 +14,8 @@ export interface Song {
   created_at: string
   /** JSON 字符串:[{stage, ok}]。老歌为空 —— 那时还没有这个字段。 */
   llm_status?: string | null
-  /** 自定义分类 id;老歌/未分类为 null。一首歌只属于一个分类。 */
-  category_id?: string | null
+  /** 这首歌当前所在的分类 id 列表;跟网易云歌单一样,能同时属于好几个。 */
+  category_ids?: string[]
 }
 
 /** listSongs({category}) 传这个值 = 只看没分类的歌(后端 __none__ 语义) */
@@ -24,7 +24,7 @@ export const UNCATEGORIZED = "__none__"
 /** 拖歌曲卡片到侧栏分类项时,dataTransfer 用这个 mime 类型传歌曲 id */
 export const SONG_DRAG_MIME = "application/x-zemusic-song-id"
 
-/** 自定义分类;一首歌只属于一个分类,拖到侧栏分类项上就归类过去 */
+/** 自定义分类;一首歌能同时属于好几个分类,拖/勾选加进去,不会互相排斥 */
 export interface Category {
   id: string
   name: string
