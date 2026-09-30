@@ -5,6 +5,7 @@ import { listSongs, listActiveJobs, listCategories } from "@/lib/api"
 import SongCard from "@/components/SongCard"
 import PendingCard from "@/components/PendingCard"
 import CategoryFilterBar from "@/components/CategoryFilterBar"
+import SongSelector from "@/components/SongSelector"
 import { usePlayer } from "@/lib/player"
 import { UNCATEGORIZED, type Song, type ActiveJob, type Category } from "@/lib/types"
 
@@ -30,6 +31,7 @@ function LibraryContent() {
   const [categories, setCategories] = useState<Category[]>([])
   const [q, setQ] = useState("")
   const [tab, setTab] = useState<"all" | "fav">("all")
+  const [selectorOpen, setSelectorOpen] = useState(false)
   // 只在「全部」、没搜索词、也没按分类筛选时显示生成中卡片:
   // 生成中的歌还没有分类,混进筛选结果里会显得不对
   const showPending = tab === "all" && !q && !cat
@@ -91,6 +93,8 @@ function LibraryContent() {
     cat === UNCATEGORIZED
       ? "未分类"
       : categories.find((c) => c.id === cat)?.name
+  // 只有真实分类才能"选择歌曲"添加;未分类是"零归属"算出来的,不是一个可以塞歌进去的容器
+  const isRealCategory = !!cat && cat !== UNCATEGORIZED
 
   return (
     <div>
@@ -106,6 +110,19 @@ function LibraryContent() {
             >
               · 返回全部
             </span>
+            {isRealCategory && (
+              <>
+                {" "}
+                ·{" "}
+                <span
+                  role="button"
+                  onClick={() => setSelectorOpen(true)}
+                  style={{ color: "var(--brand)", cursor: "pointer" }}
+                >
+                  + 选择歌曲
+                </span>
+              </>
+            )}
           </>
         ) : (
           "大家用 AI 创作的所有歌曲"
@@ -164,6 +181,17 @@ function LibraryContent() {
         ))}
       </div>
       {songs.length === 0 && jobs.length === 0 && <p className="text-muted">还没有歌曲</p>}
+      {selectorOpen && isRealCategory && (
+        <SongSelector
+          categoryId={cat}
+          categoryName={activeCategoryName || ""}
+          onClose={() => setSelectorOpen(false)}
+          onChanged={() => {
+            loadSongs()
+            listCategories().then(setCategories).catch(() => {})
+          }}
+        />
+      )}
     </div>
   )
 }

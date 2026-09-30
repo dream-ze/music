@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { createCategory } from "@/lib/api"
 import type { Category } from "@/lib/types"
@@ -24,10 +24,23 @@ export default function CategoryPicker({
 }) {
   const [newName, setNewName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [toast, setToast] = useState("")
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // 卡片有 backdrop-filter,会给 position:fixed 的子元素另开一个定位基准,
   // 面板会被缩在卡片那个小方框里而不是铺满屏幕;传送到 body 上才能真正全屏。
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+  useEffect(() => () => clearTimeout(toastTimer.current), [])
+
+  // 勾选是即时生效的(不用等按确定),但如果什么反馈都没有,不容易看出到底加进去了
+  // 没有;打勾瞬间提示一下加到了哪个分类,一秒多自动消失。
+  function handleToggle(c: Category) {
+    const wasSelected = selectedIds.includes(c.id)
+    onToggle(c.id)
+    setToast(wasSelected ? `已从「${c.name}」移出` : `已加入「${c.name}」`)
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(""), 1600)
+  }
 
   async function handleCreate() {
     const name = newName.trim()
@@ -81,6 +94,19 @@ export default function CategoryPicker({
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 14 }}>添加到分类</span>
+          {toast && (
+            <span
+              style={{
+                fontSize: 11.5,
+                color: "var(--brand)",
+                background: "rgba(47,107,216,.12)",
+                padding: "2px 8px",
+                borderRadius: 10,
+              }}
+            >
+              {toast}
+            </span>
+          )}
           <button
             aria-label="关闭"
             onClick={onClose}
@@ -120,7 +146,7 @@ export default function CategoryPicker({
             <input
               type="checkbox"
               checked={selectedIds.includes(c.id)}
-              onChange={() => onToggle(c.id)}
+              onChange={() => handleToggle(c)}
             />
             <span style={{ flex: 1 }}>{c.name}</span>
             <span className="text-muted" style={{ fontSize: 11 }}>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, act } from "@testing-library/react"
 import Library from "@/app/library/page"
-import { listSongs, listActiveJobs } from "@/lib/api"
+import { listSongs, listActiveJobs, listCategories } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({
   listSongs: vi.fn(),
@@ -10,9 +10,10 @@ vi.mock("@/lib/api", () => ({
   toggleFavorite: vi.fn(),
 }))
 vi.mock("@/lib/player", () => ({ usePlayer: () => ({ play: vi.fn() }) }))
+let searchParams = new URLSearchParams()
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => searchParams,
 }))
 
 const song = {
@@ -53,5 +54,42 @@ describe("作品库生成中卡片", () => {
       fireEvent.change(screen.getByPlaceholderText("🔍 搜索歌名、风格、歌词"), { target: { value: "x" } })
     })
     expect(screen.queryByText("冬日甜心")).toBeNull()
+  })
+})
+
+describe("作品库「选择歌曲」入口(打开分类,像网易云歌单一样选歌加进来)", () => {
+  beforeEach(() => {
+    vi.mocked(listSongs).mockResolvedValue([song])
+    vi.mocked(listActiveJobs).mockResolvedValue([])
+  })
+  afterEach(() => {
+    searchParams = new URLSearchParams()
+  })
+
+  it("没有按分类筛选时不显示「选择歌曲」", async () => {
+    render(<Library />)
+    await act(async () => {})
+    expect(screen.queryByText("+ 选择歌曲")).toBeNull()
+  })
+
+  it("按真实分类筛选时显示「选择歌曲」,点开会弹出选歌面板", async () => {
+    searchParams = new URLSearchParams("cat=c1")
+    vi.mocked(listCategories).mockResolvedValue([
+      { id: "c1", name: "民谣", created_by: "ze", created_at: "", song_count: 1 },
+    ])
+    render(<Library />)
+    await act(async () => {})
+    const entry = screen.getByText("+ 选择歌曲")
+    await act(async () => {
+      fireEvent.click(entry)
+    })
+    expect(screen.getByText("选择歌曲 · 民谣")).toBeInTheDocument()
+  })
+
+  it("按「未分类」筛选时不显示「选择歌曲」(未分类不是能塞歌进去的容器)", async () => {
+    searchParams = new URLSearchParams("cat=__none__")
+    render(<Library />)
+    await act(async () => {})
+    expect(screen.queryByText("+ 选择歌曲")).toBeNull()
   })
 })
