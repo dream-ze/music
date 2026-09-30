@@ -34,7 +34,7 @@ export default function Nav() {
             color: "transparent",
           }}
         >
-          ze music
+          灵感壁炉
         </span>
       </div>
       <nav className="nav-links">

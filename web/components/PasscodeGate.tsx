@@ -75,7 +75,7 @@ export default function PasscodeGate({ children }: { children: React.ReactNode }
       }}
     >
       <div className="bg-panel" style={{ padding: 28, borderRadius: 14, width: 320 }}>
-        <h2 style={{ marginTop: 0 }}>🎵 ze music</h2>
+        <h2 style={{ marginTop: 0 }}>🎵 灵感壁炉</h2>
         <p className="text-muted" style={{ fontSize: 13 }}>
           输入口令进入
         </p>

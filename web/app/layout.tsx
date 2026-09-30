@@ -5,7 +5,7 @@ import Player from "@/components/Player"
 import PasscodeGate from "@/components/PasscodeGate"
 import { PlayerProvider } from "@/lib/player"
 
-export const metadata = { title: "ze music", description: "把歌词变成一首歌" }
+export const metadata = { title: "灵感壁炉", description: "把歌词变成一首歌" }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
