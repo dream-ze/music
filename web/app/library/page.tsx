@@ -1,7 +1,7 @@
 "use client"
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { listSongs, listActiveJobs, listCategories } from "@/lib/api"
+import { listSongs, listActiveJobs, listCategories, deleteCategory } from "@/lib/api"
 import SongCard from "@/components/SongCard"
 import PendingCard from "@/components/PendingCard"
 import CategoryFilterBar from "@/components/CategoryFilterBar"
@@ -96,6 +96,19 @@ function LibraryContent() {
   // 只有真实分类才能"选择歌曲"添加;未分类是"零归属"算出来的,不是一个可以塞歌进去的容器
   const isRealCategory = !!cat && cat !== UNCATEGORIZED
 
+  async function handleDeleteCategory(id: string, name: string) {
+    if (!window.confirm(`删除分类《${name}》？这个分类下的歌不会被删，只会从这个分类里移出。`))
+      return
+    try {
+      await deleteCategory(id)
+      if (cat === id) router.push("/library")
+      listCategories().then(setCategories).catch(() => {})
+      loadSongs()
+    } catch {
+      // 静默失败:分类是辅助功能,报错不值得打断用户(跟侧栏那边一致)
+    }
+  }
+
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 4px" }}>作品库</h1>
@@ -132,6 +145,7 @@ function LibraryContent() {
         categories={categories}
         active={cat}
         onSelect={(next) => router.push(next ? `/library?cat=${encodeURIComponent(next)}` : "/library")}
+        onDelete={handleDeleteCategory}
       />
       <div className="search-row">
         <input

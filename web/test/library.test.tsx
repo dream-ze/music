@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, act } from "@testing-library/react"
 import Library from "@/app/library/page"
-import { listSongs, listActiveJobs, listCategories } from "@/lib/api"
+import { listSongs, listActiveJobs, listCategories, deleteCategory } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({
   listSongs: vi.fn(),
   listActiveJobs: vi.fn(),
   listCategories: vi.fn().mockResolvedValue([]),
+  deleteCategory: vi.fn().mockResolvedValue(undefined),
   toggleFavorite: vi.fn(),
 }))
 vi.mock("@/lib/player", () => ({ usePlayer: () => ({ play: vi.fn() }) }))
@@ -91,5 +92,38 @@ describe("作品库「选择歌曲」入口(打开分类,像网易云歌单一�
     render(<Library />)
     await act(async () => {})
     expect(screen.queryByText("+ 选择歌曲")).toBeNull()
+  })
+})
+
+describe("作品库分类 chip 删除(手机端没有侧栏,补在这排 chip 上)", () => {
+  beforeEach(() => {
+    vi.mocked(listSongs).mockResolvedValue([song])
+    vi.mocked(listActiveJobs).mockResolvedValue([])
+    vi.mocked(listCategories).mockResolvedValue([
+      { id: "c1", name: "民谣", created_by: "ze", created_at: "", song_count: 0 },
+    ])
+  })
+  afterEach(() => {
+    searchParams = new URLSearchParams()
+  })
+
+  it("取消确认框不会调用删除接口", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false)
+    render(<Library />)
+    await act(async () => {})
+    fireEvent.click(screen.getByLabelText("删除分类"))
+    expect(deleteCategory).not.toHaveBeenCalled()
+  })
+
+  it("确认后调用删除接口,并重新拉取分类和歌曲列表", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    render(<Library />)
+    await act(async () => {})
+    const before = vi.mocked(listSongs).mock.calls.length
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("删除分类"))
+    })
+    expect(deleteCategory).toHaveBeenCalledWith("c1")
+    expect(vi.mocked(listSongs).mock.calls.length).toBeGreaterThan(before)
   })
 })
