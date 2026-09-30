@@ -186,10 +186,6 @@ textarea::placeholder {
   flex: 1.1;
   min-width: 0;
 }
-.gen-inspire {
-  flex: 0.85;
-  min-width: 0;
-}
 .song-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -259,8 +255,7 @@ textarea::placeholder {
     align-items: stretch;
   }
   .gen-lyrics,
-  .gen-settings,
-  .gen-inspire {
+  .gen-settings {
     flex: none;
     width: 100%;
   }

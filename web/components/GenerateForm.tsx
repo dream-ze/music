@@ -3,7 +3,6 @@ import { useState } from "react"
 import { generate, getJob } from "@/lib/api"
 import { usePlayer } from "@/lib/player"
 import AdvancedSettings, { type AdvValue } from "./AdvancedSettings"
-import InspirationList from "./InspirationList"
 import type { GenerateInput } from "@/lib/types"
 
 type Status = "idle" | "queued" | "running" | "error"
@@ -152,16 +151,6 @@ export default function GenerateForm() {
         {status === "error" && (
           <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{msg}</p>
         )}
-      </div>
-      <div className="gen-inspire">
-        <InspirationList
-          onPick={(l, f, preset, t) => {
-            setTitle(t)
-            setLyrics(l)
-            setFeeling(f)
-            setAdv((s) => ({ ...s, preset }))
-          }}
-        />
       </div>
     </div>
   )
