@@ -4,14 +4,18 @@ import { getPasscode, setPasscode } from "@/lib/passcode"
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
-async function verify(passcode: string): Promise<boolean> {
+type VerifyResult = { ok: boolean; networkError?: boolean }
+
+/** 口令错了 vs 请求根本没到服务器(网络/VPN/后端挂了),这是两码事,
+ * 原来一律显示"口令错误",连不上的时候会误导人去反复改口令。 */
+async function verify(passcode: string): Promise<VerifyResult> {
   try {
     const res = await fetch(`${BASE}/api/songs?limit=1`, {
       headers: { "X-Passcode": passcode },
     })
-    return res.ok
+    return { ok: res.ok }
   } catch {
-    return false
+    return { ok: false, networkError: true }
   }
 }
 
@@ -29,9 +33,15 @@ export default function PasscodeGate({ children }: { children: React.ReactNode }
       setReady(true)
       return
     }
-    verify(saved).then((good) => {
+    verify(saved).then(({ ok: good, networkError }) => {
       setOk(good)
-      if (!good) setErr("已保存的口令无效，请重新输入")
+      if (!good) {
+        setErr(
+          networkError
+            ? "连不上服务器,检查一下网络(比如手机开着 VPN 可能会挡住)"
+            : "已保存的口令无效，请重新输入"
+        )
+      }
       setReady(true)
     })
   }, [])
@@ -40,11 +50,13 @@ export default function PasscodeGate({ children }: { children: React.ReactNode }
     if (!val) return
     setChecking(true)
     setErr("")
-    const good = await verify(val)
+    const { ok: good, networkError } = await verify(val)
     setChecking(false)
     if (good) {
       setPasscode(val)
       setOk(true)
+    } else if (networkError) {
+      setErr("连不上服务器,检查一下网络(比如手机开着 VPN 可能会挡住)")
     } else {
       setErr("口令错误")
     }
