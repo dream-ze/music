@@ -150,6 +150,13 @@ def delete_song(song_id: str) -> bool:
         return cur.rowcount > 0
 
 
+def rename_song(song_id: str, title: str) -> bool:
+    """改歌名。原来只有生成那一刻能起名(还起得不好),这里补上事后改名。"""
+    with _conn() as c:
+        cur = c.execute("UPDATE songs SET title=? WHERE id=?", (title, song_id))
+        return cur.rowcount > 0
+
+
 def create_category(name: str, created_by: str) -> dict:
     cid = uuid.uuid4().hex
     with _conn() as c:

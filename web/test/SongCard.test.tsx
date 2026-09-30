@@ -1,7 +1,13 @@
-import { describe, it, expect, vi, afterEach } from "vitest"
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import SongCard from "@/components/SongCard"
-import { deleteSong, addSongToCategory, removeSongFromCategory, createCategory } from "@/lib/api"
+import {
+  deleteSong,
+  renameSong,
+  addSongToCategory,
+  removeSongFromCategory,
+  createCategory,
+} from "@/lib/api"
 import { downloadSong } from "@/lib/download"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
 
@@ -12,6 +18,7 @@ vi.mock("@/lib/download", () => ({
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   deleteSong: vi.fn().mockResolvedValue(undefined),
+  renameSong: vi.fn().mockResolvedValue("新名字"),
   addSongToCategory: vi.fn().mockResolvedValue([]),
   removeSongFromCategory: vi.fn().mockResolvedValue([]),
   createCategory: vi.fn(),
@@ -121,6 +128,59 @@ describe("SongCard 归类(多对多,跟网易云歌单一样)", () => {
     fireEvent.click(screen.getByText("确定"))
     await waitFor(() => expect(createCategory).toHaveBeenCalledWith("治愈"))
     await waitFor(() => expect(onCategoriesChanged).toHaveBeenCalled())
+  })
+})
+
+describe("SongCard 改名(生成时只有一次原始命名机会,补上事后改名)", () => {
+  // 文件级 afterEach 的 vi.restoreAllMocks() 会把 vi.mock 工厂里设的
+  // mockResolvedValue 也清掉,每个用例前重新设一次,不依赖工厂默认值残留
+  beforeEach(() => {
+    vi.mocked(renameSong).mockResolvedValue("新名字")
+  })
+
+  it("点✎进入编辑态,回车确认后调用 renameSong 并显示新名字", async () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("改名"))
+    const input = screen.getByDisplayValue("夏夜的微风")
+    fireEvent.change(input, { target: { value: "新名字" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    await waitFor(() => expect(renameSong).toHaveBeenCalledWith("s1", "新名字"))
+    await waitFor(() => expect(screen.getByText("新名字")).toBeInTheDocument())
+    expect(screen.queryByDisplayValue("新名字")).toBeNull()
+  })
+
+  it("点 ✓ 按钮效果一样,不一定要回车", async () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("改名"))
+    fireEvent.change(screen.getByDisplayValue("夏夜的微风"), { target: { value: "新名字" } })
+    fireEvent.click(screen.getByLabelText("确认改名"))
+    await waitFor(() => expect(renameSong).toHaveBeenCalledWith("s1", "新名字"))
+  })
+
+  it("点 × 或按 Esc 取消编辑,不调用接口,名字不变", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("改名"))
+    fireEvent.change(screen.getByDisplayValue("夏夜的微风"), { target: { value: "改一半" } })
+    fireEvent.click(screen.getByLabelText("取消改名"))
+    expect(renameSong).not.toHaveBeenCalled()
+    expect(screen.getByText("夏夜的微风")).toBeInTheDocument()
+  })
+
+  it("空白名字时确认按钮是禁用的,不会真的改成空", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("改名"))
+    fireEvent.change(screen.getByDisplayValue("夏夜的微风"), { target: { value: "   " } })
+    expect(screen.getByLabelText("确认改名")).toBeDisabled()
+  })
+
+  it("接口失败时编辑框留着,不静默丢失用户输入", async () => {
+    vi.mocked(renameSong).mockRejectedValueOnce(new Error("网络错误"))
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("改名"))
+    fireEvent.change(screen.getByDisplayValue("夏夜的微风"), { target: { value: "新名字" } })
+    fireEvent.click(screen.getByLabelText("确认改名"))
+    await waitFor(() => expect(renameSong).toHaveBeenCalled())
+    expect(screen.getByDisplayValue("新名字")).toBeInTheDocument()
   })
 })
 

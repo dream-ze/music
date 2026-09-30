@@ -1,6 +1,12 @@
 "use client"
 import { useState } from "react"
-import { toggleFavorite, deleteSong, addSongToCategory, removeSongFromCategory } from "@/lib/api"
+import {
+  toggleFavorite,
+  deleteSong,
+  renameSong,
+  addSongToCategory,
+  removeSongFromCategory,
+} from "@/lib/api"
 import { formatDuration } from "@/lib/format"
 import { downloadSong } from "@/lib/download"
 import { usePlayer } from "@/lib/player"
@@ -56,11 +62,15 @@ export default function SongCard({
   const [downloadError, setDownloadError] = useState(false)
   const [categoryIds, setCategoryIds] = useState<string[]>(song.category_ids ?? [])
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [title, setTitle] = useState(song.title)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(song.title)
+  const [renaming, setRenaming] = useState(false)
   const { current, stop } = usePlayer()
   const degraded = degradedNotes(song.llm_status)
 
   async function handleDelete() {
-    if (!window.confirm(`确定删除《${song.title}》？此操作不可恢复。`)) return
+    if (!window.confirm(`确定删除《${title}》？此操作不可恢复。`)) return
     setDeleting(true)
     try {
       await deleteSong(song.id)
@@ -76,12 +86,32 @@ export default function SongCard({
     setDownloading(true)
     setDownloadError(false)
     try {
-      await downloadSong(song.id, song.title)
+      await downloadSong(song.id, title)
     } catch {
       setDownloadError(true)
       setTimeout(() => setDownloadError(false), 2000)
     } finally {
       setDownloading(false)
+    }
+  }
+
+  function startEditingTitle() {
+    setTitleDraft(title)
+    setEditingTitle(true)
+  }
+
+  async function handleRename() {
+    const next = titleDraft.trim()
+    if (!next || renaming) return
+    setRenaming(true)
+    try {
+      const saved = await renameSong(song.id, next)
+      setTitle(saved)
+      setEditingTitle(false)
+    } catch {
+      // 保留输入框打开,让用户能改改再试一次(比如名字被截断成空)
+    } finally {
+      setRenaming(false)
     }
   }
 
@@ -180,31 +210,113 @@ export default function SongCard({
         </button>
       </div>
       <div style={{ padding: "11px 12px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 5,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{song.title}</div>
-          {degraded.length > 0 && (
-            <span
-              title={`${degraded.join("；")}。这首歌是降级生成的`}
+        {editingTitle ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 5 }}>
+            <input
+              autoFocus
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename()
+                if (e.key === "Escape") setEditingTitle(false)
+              }}
+              maxLength={20}
               style={{
-                fontSize: 9.5,
-                padding: "1px 5px",
-                borderRadius: 5,
-                background: "rgba(192,57,43,.12)",
-                color: "var(--danger)",
+                flex: 1,
+                minWidth: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "2px 6px",
+                borderRadius: 6,
+                border: "1px solid var(--brand)",
+                background: "var(--field)",
+                color: "var(--ink)",
+              }}
+            />
+            <button
+              aria-label="确认改名"
+              onClick={handleRename}
+              disabled={renaming || !titleDraft.trim()}
+              style={{
+                border: "none",
+                background: "none",
+                color: "var(--brand)",
+                cursor: renaming || !titleDraft.trim() ? "not-allowed" : "pointer",
+                fontSize: 13,
+                padding: 2,
+              }}
+            >
+              ✓
+            </button>
+            <button
+              aria-label="取消改名"
+              onClick={() => setEditingTitle(false)}
+              style={{
+                border: "none",
+                background: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                fontSize: 13,
+                padding: 2,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 5,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              降级
-            </span>
-          )}
-        </div>
+              {title}
+            </div>
+            <button
+              aria-label="改名"
+              onClick={startEditingTitle}
+              title="改名"
+              style={{
+                border: "none",
+                background: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                fontSize: 11,
+                padding: 2,
+                flex: "0 0 auto",
+              }}
+            >
+              ✎
+            </button>
+            {degraded.length > 0 && (
+              <span
+                title={`${degraded.join("；")}。这首歌是降级生成的`}
+                style={{
+                  fontSize: 9.5,
+                  padding: "1px 5px",
+                  borderRadius: 5,
+                  background: "rgba(192,57,43,.12)",
+                  color: "var(--danger)",
+                  whiteSpace: "nowrap",
+                  flex: "0 0 auto",
+                }}
+              >
+                降级
+              </span>
+            )}
+          </div>
+        )}
         <div className="text-muted" style={{ fontSize: 10.5, marginBottom: 7 }}>
           {song.feeling}
         </div>

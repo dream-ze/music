@@ -53,6 +53,18 @@ class GenerateRequest(BaseModel):
         return v
 
 
+class SongRename(BaseModel):
+    title: str
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v: str) -> str:
+        v = v.strip()[:TITLE_MAX]
+        if not v:
+            raise ValueError("title must not be blank")
+        return v
+
+
 CATEGORY_NAME_MAX = 20
 
 

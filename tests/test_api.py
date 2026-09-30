@@ -172,6 +172,41 @@ def test_delete_song_removes_record_and_r2_file(monkeypatch, tmp_path):
     assert r2.status_code == 404
 
 
+def test_rename_song(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "rename.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s1", "title": "旧歌", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s1.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+
+    r = client.patch("/api/songs/s1", json={"title": "  新名字  "})
+    assert r.status_code == 200
+    assert r.json() == {"title": "新名字"}
+    assert db.get_song("s1")["title"] == "新名字"
+
+
+def test_rename_song_rejects_blank_title(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "rename2.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s1", "title": "旧歌", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s1.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+    r = client.patch("/api/songs/s1", json={"title": "   "})
+    assert r.status_code == 422
+
+
+def test_rename_unknown_song_404(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "rename3.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    r = client.patch("/api/songs/nope", json={"title": "新名字"})
+    assert r.status_code == 404
+
+
 def test_delete_song_ok_even_if_r2_delete_fails(monkeypatch, tmp_path):
     """R2 删失败不应挡住删记录,否则前端会看到删不掉的歌。"""
     from server import db, routes

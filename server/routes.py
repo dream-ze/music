@@ -70,6 +70,13 @@ def delete_song(song_id: str, who: str = Depends(require_passcode)):
     return {"deleted": True}
 
 
+@router.patch("/songs/{song_id}")
+def rename_song(song_id: str, body: models.SongRename, who: str = Depends(require_passcode)):
+    if not db.rename_song(song_id, body.title):
+        raise HTTPException(404, "歌曲不存在")
+    return {"title": body.title}
+
+
 @router.get("/songs/{song_id}/download")
 def download_song(song_id: str, who: str = Depends(require_passcode)):
     """下载这首歌的 mp3。走后端转一手,而不是前端直接 fetch R2 的公开地址:

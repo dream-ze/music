@@ -56,6 +56,16 @@ describe("api", () => {
     expect(await api.toggleFavorite("s1")).toBe(true)
   })
 
+  it("renameSong 发 PATCH 带新标题,返回后端确认的名字", async () => {
+    const f = mockFetch({ title: "新名字" })
+    vi.stubGlobal("fetch", f)
+    expect(await api.renameSong("s1", "新名字")).toBe("新名字")
+    const [url, opts] = f.mock.calls[0]
+    expect(String(url)).toContain("/api/songs/s1")
+    expect(opts.method).toBe("PATCH")
+    expect(JSON.parse(opts.body)).toEqual({ title: "新名字" })
+  })
+
   it("请求失败抛错", async () => {
     vi.stubGlobal("fetch", mockFetch({ detail: "口令错误" }, false, 401))
     await expect(api.getJob("j1")).rejects.toThrow()

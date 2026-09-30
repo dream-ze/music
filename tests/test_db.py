@@ -22,6 +22,20 @@ def test_insert_and_get_song(tmp_path):
     assert got["created_at"]  # 自动填充
 
 
+def test_rename_song(tmp_path):
+    """生成时只有一次起名机会,还起得不一定好;这里补上事后改名。"""
+    p = str(tmp_path / "t.db")
+    db.init_db(p)
+    db.insert_song(_song())
+    assert db.rename_song("s1", "新名字") is True
+    assert db.get_song("s1")["title"] == "新名字"
+
+
+def test_rename_unknown_song_returns_false(tmp_path):
+    db.init_db(str(tmp_path / "t.db"))
+    assert db.rename_song("nope", "新名字") is False
+
+
 def test_list_songs_filters(tmp_path):
     p = str(tmp_path / "t.db")
     db.init_db(p)

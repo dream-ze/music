@@ -58,6 +58,14 @@ export async function deleteSong(id: string): Promise<void> {
   await req<{ deleted: boolean }>(`/api/songs/${id}`, { method: "DELETE" })
 }
 
+export async function renameSong(id: string, title: string): Promise<string> {
+  const r = await req<{ title: string }>(`/api/songs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  })
+  return r.title
+}
+
 export async function listCategories(): Promise<Category[]> {
   const r = await req<{ categories: Category[] }>("/api/categories")
   return r.categories
