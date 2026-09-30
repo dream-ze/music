@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import AdvancedSettings, { type AdvValue } from "@/components/AdvancedSettings"
 
 const base: AdvValue = {
-  genre: [], mood: [], vocal_gender: "", language: "", seed: "", preset: "",
+  genre: [], mood: [], vocal_gender: "", language: "", preset: "",
 }
 
 describe("AdvancedSettings 发送英文 tag 与 preset", () => {

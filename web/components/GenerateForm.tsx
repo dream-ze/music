@@ -17,7 +17,6 @@ export default function GenerateForm() {
     mood: [],
     vocal_gender: "",
     language: "",
-    seed: "",
     preset: "",
   })
   const [status, setStatus] = useState<Status>("idle")
@@ -57,7 +56,7 @@ export default function GenerateForm() {
       title: title.trim(),
       feeling,
       length: "auto", // 时长按歌词自动估算,不再让用户手动选挡位
-      seed: adv.seed ? Number(adv.seed) : null,
+      seed: null,
       instrumental: false,
       overrides: {
         genre: adv.genre,

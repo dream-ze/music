@@ -30,7 +30,6 @@ export interface AdvValue {
   mood: string[]
   vocal_gender: string
   language: string
-  seed: string
   preset: string
 }
 
@@ -123,12 +122,6 @@ export default function AdvancedSettings({
           <option value="female">女声</option>
           <option value="male">男声</option>
         </select>
-        <input
-          placeholder="Seed(随机)"
-          value={value.seed}
-          onChange={(e) => onChange({ seed: e.target.value })}
-          style={{ width: 90 }}
-        />
       </div>
     </div>
   )
