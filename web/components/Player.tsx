@@ -1,11 +1,29 @@
 "use client"
 import Link from "next/link"
+import { useState } from "react"
 import { usePlayer } from "@/lib/player"
 import { formatDuration } from "@/lib/format"
+import { downloadSong } from "@/lib/download"
 
 export default function Player() {
   const { current } = usePlayer()
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState(false)
   if (!current) return null
+
+  async function handleDownload() {
+    if (downloading || !current) return
+    setDownloading(true)
+    setDownloadError(false)
+    try {
+      await downloadSong(current.id, current.title)
+    } catch {
+      setDownloadError(true)
+      setTimeout(() => setDownloadError(false), 2000)
+    } finally {
+      setDownloading(false)
+    }
+  }
   return (
     <div
       className="player-bar"
@@ -57,6 +75,24 @@ export default function Player() {
       >
         词
       </Link>
+      <button
+        aria-label="下载"
+        onClick={handleDownload}
+        disabled={downloading}
+        title={downloadError ? "下载失败,再试一次" : "下载到本地"}
+        style={{
+          border: "none",
+          background: "none",
+          borderRadius: 8,
+          padding: "6px 11px",
+          fontSize: 13,
+          color: downloadError ? "var(--danger)" : "var(--muted)",
+          cursor: downloading ? "not-allowed" : "pointer",
+          opacity: downloading ? 0.5 : 1,
+        }}
+      >
+        {downloading ? "下载中…" : downloadError ? "下载失败" : "⬇"}
+      </button>
       <audio controls autoPlay src={current.mp3_url} className="player-audio" />
     </div>
   )

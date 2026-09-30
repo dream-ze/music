@@ -1,9 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import re
+from urllib.parse import quote
+
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from server import db, models, inspirations, storage
 from server.auth import require_passcode
 
 router = APIRouter(prefix="/api")
+
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]')
+
+
+def _content_disposition(title: str) -> str:
+    """歌名基本都是中文,HTTP 头只能是 latin-1,原样塞进去会直接抛
+    UnicodeEncodeError。按 RFC 5987 给一个 ASCII 兜底文件名 + UTF-8
+    百分号编码的 filename*,新浏览器认 filename*,老的退回兜底名。"""
+    name = _UNSAFE_FILENAME_CHARS.sub("_", (title or "未命名").strip())
+    return f'attachment; filename="download.mp3"; filename*=UTF-8\'\'{quote(name)}.mp3'
 
 
 @router.post("/generate")
@@ -54,6 +68,24 @@ def delete_song(song_id: str, who: str = Depends(require_passcode)):
             logging.getLogger(__name__).warning("R2 删除失败: %s", key, exc_info=True)
     db.delete_song(song_id)
     return {"deleted": True}
+
+
+@router.get("/songs/{song_id}/download")
+def download_song(song_id: str, who: str = Depends(require_passcode)):
+    """下载这首歌的 mp3。走后端转一手,而不是前端直接 fetch R2 的公开地址:
+    R2 桶没开 CORS,浏览器里的 fetch() 会被拦掉;我们自己的接口本来就对
+    前端开着 CORS,顺便还能把 Content-Disposition 设成"强制下载",文件名
+    也能用歌名,而不是一串 uuid.mp3。"""
+    song = db.get_song(song_id)
+    if not song or not song.get("mp3_url"):
+        raise HTTPException(404, "歌曲不存在")
+    r = requests.get(song["mp3_url"], timeout=30)
+    r.raise_for_status()
+    return Response(
+        content=r.content,
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": _content_disposition(song.get("title", ""))},
+    )
 
 
 @router.post("/songs/{song_id}/favorite")

@@ -265,3 +265,42 @@ def test_add_unknown_song_to_category_404(monkeypatch, tmp_path):
     cat_id = client.post("/api/categories", json={"name": "民谣"}).json()["id"]
     r = client.put(f"/api/songs/nope/categories/{cat_id}")
     assert r.status_code == 404
+
+
+def test_download_song_proxies_r2_with_content_disposition(monkeypatch, tmp_path):
+    """前端不能直接 fetch R2 的公开地址(桶没开 CORS),下载走后端转一手;
+    顺便把文件名换成歌名而不是一串 uuid,还要能扛住中文文件名不炸(latin-1)。"""
+    from server import db, routes
+    db.init_db(str(tmp_path / "dl.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    db.insert_song({"id": "s1", "title": "测试 歌名", "lyrics": "x", "feeling": "x",
+                    "spec_json": "{}", "structured_lyrics": "x", "seed": None,
+                    "mp3_url": "https://r2/s1.mp3", "duration_sec": 45.0,
+                    "instrumental": 0, "created_by": "demo"})
+
+    class FakeResp:
+        content = b"fake mp3 bytes"
+        def raise_for_status(self):
+            pass
+    captured = {}
+    def fake_get(url, timeout=None):
+        captured["url"] = url
+        return FakeResp()
+    monkeypatch.setattr(routes.requests, "get", fake_get)
+
+    r = client.get("/api/songs/s1/download")
+    assert r.status_code == 200
+    assert r.content == b"fake mp3 bytes"
+    assert r.headers["content-type"] == "audio/mpeg"
+    assert captured["url"] == "https://r2/s1.mp3"
+    disposition = r.headers["content-disposition"]
+    assert disposition.startswith("attachment;")
+    assert "filename*=UTF-8''" in disposition
+
+
+def test_download_song_unknown_404(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "dlunk.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    r = client.get("/api/songs/nope/download")
+    assert r.status_code == 404

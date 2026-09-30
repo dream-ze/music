@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { toggleFavorite, deleteSong, addSongToCategory, removeSongFromCategory } from "@/lib/api"
 import { formatDuration } from "@/lib/format"
+import { downloadSong } from "@/lib/download"
 import { usePlayer } from "@/lib/player"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
 import CategoryPicker from "./CategoryPicker"
@@ -51,6 +52,8 @@ export default function SongCard({
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
   const [deleting, setDeleting] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState(false)
   const [categoryIds, setCategoryIds] = useState<string[]>(song.category_ids ?? [])
   const [pickerOpen, setPickerOpen] = useState(false)
   const { current, stop } = usePlayer()
@@ -65,6 +68,20 @@ export default function SongCard({
       onDeleted?.(song.id)
     } catch {
       setDeleting(false)
+    }
+  }
+
+  async function handleDownload() {
+    if (downloading) return
+    setDownloading(true)
+    setDownloadError(false)
+    try {
+      await downloadSong(song.id, song.title)
+    } catch {
+      setDownloadError(true)
+      setTimeout(() => setDownloadError(false), 2000)
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -249,23 +266,42 @@ export default function SongCard({
           }}
         >
           <span>{formatDuration(song.duration_sec)}</span>
-          <button
-            aria-label="删除"
-            onClick={handleDelete}
-            disabled={deleting}
-            title="删除这首歌"
-            style={{
-              border: "none",
-              background: "none",
-              color: "var(--muted)",
-              cursor: deleting ? "not-allowed" : "pointer",
-              fontSize: 13,
-              padding: 2,
-              opacity: deleting ? 0.5 : 1,
-            }}
-          >
-            🗑
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              aria-label="下载"
+              onClick={handleDownload}
+              disabled={downloading}
+              title={downloadError ? "下载失败,再试一次" : "下载到本地"}
+              style={{
+                border: "none",
+                background: "none",
+                color: downloadError ? "var(--danger)" : "var(--muted)",
+                cursor: downloading ? "not-allowed" : "pointer",
+                fontSize: 13,
+                padding: 2,
+                opacity: downloading ? 0.5 : 1,
+              }}
+            >
+              {downloading ? "…" : downloadError ? "!" : "⬇"}
+            </button>
+            <button
+              aria-label="删除"
+              onClick={handleDelete}
+              disabled={deleting}
+              title="删除这首歌"
+              style={{
+                border: "none",
+                background: "none",
+                color: "var(--muted)",
+                cursor: deleting ? "not-allowed" : "pointer",
+                fontSize: 13,
+                padding: 2,
+                opacity: deleting ? 0.5 : 1,
+              }}
+            >
+              🗑
+            </button>
+          </div>
         </div>
       </div>
     </div>

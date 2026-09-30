@@ -2,7 +2,12 @@ import { describe, it, expect, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import SongCard from "@/components/SongCard"
 import { deleteSong, addSongToCategory, removeSongFromCategory, createCategory } from "@/lib/api"
+import { downloadSong } from "@/lib/download"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
+
+vi.mock("@/lib/download", () => ({
+  downloadSong: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -116,6 +121,21 @@ describe("SongCard 归类(多对多,跟网易云歌单一样)", () => {
     fireEvent.click(screen.getByText("确定"))
     await waitFor(() => expect(createCategory).toHaveBeenCalledWith("治愈"))
     await waitFor(() => expect(onCategoriesChanged).toHaveBeenCalled())
+  })
+})
+
+describe("SongCard 下载", () => {
+  it("点下载按钮会调用 downloadSong,带上歌曲 id 和歌名", async () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("下载"))
+    await waitFor(() => expect(downloadSong).toHaveBeenCalledWith("s1", "夏夜的微风"))
+  })
+
+  it("下载失败时按钮显示错误状态,过一会儿恢复", async () => {
+    vi.mocked(downloadSong).mockRejectedValueOnce(new Error("网络错误"))
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("下载"))
+    await waitFor(() => expect(screen.getByLabelText("下载")).toHaveTextContent("!"))
   })
 })
 
