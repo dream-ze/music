@@ -139,3 +139,19 @@ def test_other_llm_error_is_not_retried(monkeypatch):
     lyrics.structure_lyrics("第一句", safe_spec(), status_events=events)
     assert len(calls) == 1
     assert events == [{"stage": "歌词整理", "ok": False, "reason": "llm_error"}]
+
+
+def test_timbre_section_tags_applied(monkeypatch):
+    monkeypatch.setattr(lyrics.llm, "complete", lambda *a, **k: "")
+    spec = safe_spec()
+    spec.vocal.timbre = "powerful"
+    out = lyrics.structure_lyrics("[Verse]\n甲乙\n\n[Chorus]\n丙丁", spec)
+    assert "[Chorus - powerful]" in out and "[Verse]" in out
+
+
+def test_unknown_timbre_in_old_spec_is_ignored(monkeypatch):
+    monkeypatch.setattr(lyrics.llm, "complete", lambda *a, **k: "")
+    spec = safe_spec()
+    spec.vocal.timbre = "robot"
+    out = lyrics.structure_lyrics("[Chorus]\n丙丁", spec)
+    assert "[Chorus]" in out

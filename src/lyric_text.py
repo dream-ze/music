@@ -8,7 +8,6 @@ _TAG_LINE = re.compile(r"^\s*\[[^\]]+\]\s*$")
 _PUNCT_SPLIT = re.compile(r"(?<=[，。、；！？,.;!?])")
 # 切分单元:空白 / 单个 CJK 字 / 英文单词 / 其他单字符
 _UNIT = re.compile(r"\s+|[一-鿿㐀-䶿]|[A-Za-z']+|.")
-_VERSE_TAG = re.compile(r"^\s*\[(Verse[^\]\-]*)\]\s*$", re.IGNORECASE)
 # 这些段落通常没有人声,补标签时不分配给歌词段
 _NON_VOCAL = {"intro", "outro", "instrumental"}
 
@@ -82,13 +81,27 @@ def split_long_lines(text: str, max_syllables: int, tolerance: int) -> str:
     return "\n".join(out)
 
 
-def _qualify_verse(line: str, qualifier: str) -> str:
-    m = _VERSE_TAG.match(line)
-    return f"[{m.group(1).strip()} - {qualifier}]" if m else line
+# 不含 "-" 的整行标签才会被加修饰:[Pre-Chorus]、[Verse - whispered] 原样保留
+_PLAIN_TAG = re.compile(r"^\s*\[([^\]\-]+)\]\s*$")
 
 
-def apply_structure_tags(text: str, structure: list[str], vocal_qualifier: str = "") -> str:
-    """用户已有标签 → 全部保留;无 → 按 structure 中的人声段顺序补;Verse 段追加限定词。"""
+def _qualify(line: str, section_tags: dict[str, str]) -> str:
+    m = _PLAIN_TAG.match(line)
+    if not m:
+        return line
+    name = m.group(1).strip()
+    for key, mod in section_tags.items():
+        if name.lower().startswith(key.lower()):
+            return f"[{name} - {mod}]"
+    return line
+
+
+def apply_structure_tags(text: str, structure: list[str], vocal_qualifier: str = "",
+                         section_tags: dict[str, str] | None = None) -> str:
+    """用户已有标签 → 全部保留;无 → 按 structure 中的人声段顺序补;再按段落加修饰。
+
+    修饰来源:preset 的 vocal_qualifier(只作用于 Verse)与音色的 section_tags,后者优先。
+    """
     lines = text.strip().splitlines()
     if any(is_tag_line(l) for l in lines):
         tagged = list(lines)
@@ -110,6 +123,8 @@ def apply_structure_tags(text: str, structure: list[str], vocal_qualifier: str =
                 tagged.append("")
             tagged.append(f"[{vocal_tags[min(i, len(vocal_tags) - 1)]}]")
             tagged.extend(sec)
-    if vocal_qualifier:
-        tagged = [_qualify_verse(l, vocal_qualifier) for l in tagged]
+    tags = {"Verse": vocal_qualifier} if vocal_qualifier else {}
+    tags.update(section_tags or {})
+    if tags:
+        tagged = [_qualify(l, tags) for l in tagged]
     return "\n".join(tagged)

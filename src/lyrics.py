@@ -5,6 +5,7 @@ from src import llm
 from src.lyric_text import apply_structure_tags, same_text, split_long_lines
 from src.presets import Preset, get_preset
 from src.spec import SongSpec
+from src.vocal_timbres import get_timbre
 
 _SYSTEM = (
     "你是作词编辑。你的唯一任务是调整歌词的换行位置。"
@@ -73,6 +74,12 @@ def structure_lyrics(
         text = base
     # 无论 LLM 路径还是回退,都再做一次确定性切分:对合规文本是幂等的
     text = split_long_lines(text, rules.max_syllables, rules.tolerance)
-    text = apply_structure_tags(text, spec.structure or preset.structure, preset.vocal_qualifier)
+    try:
+        timbre = get_timbre(spec.vocal.timbre)
+    except ValueError:      # 老数据里的未知音色:不加修饰
+        timbre = None
+    text = apply_structure_tags(text, spec.structure or preset.structure,
+                                preset.vocal_qualifier,
+                                timbre.section_tags if timbre else None)
     _emit(status_events, ok, reason)
     return text

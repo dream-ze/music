@@ -92,3 +92,16 @@ def test_apply_structure_tags_qualifies_verse_only():
     out = apply_structure_tags(text, STRUCT, vocal_qualifier="rap")
     assert "[Verse - rap]" in out and "[Verse 2 - rap]" in out
     assert "[Hook]" in out and "[Verse - whispered]" in out   # 已有限定词与 Hook 不动
+
+
+def test_section_tags_qualify_chorus_and_skip_tags_with_dash():
+    text = "[Verse]\n甲\n\n[Pre-Chorus]\n乙\n\n[Chorus]\n丙\n\n[Chorus 2]\n丁"
+    out = apply_structure_tags(text, STRUCT, section_tags={"Chorus": "powerful"})
+    assert "[Chorus - powerful]" in out and "[Chorus 2 - powerful]" in out
+    assert "[Pre-Chorus]" in out and "[Verse]\n" in out
+
+
+def test_timbre_section_tags_win_over_vocal_qualifier():
+    out = apply_structure_tags("[Verse]\n甲\n\n[Hook]\n乙", STRUCT,
+                               vocal_qualifier="rap", section_tags={"Verse": "breathy"})
+    assert "[Verse - breathy]" in out and "[Hook]" in out
