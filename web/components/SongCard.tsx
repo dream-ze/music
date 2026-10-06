@@ -6,7 +6,9 @@ import {
   renameSong,
   addSongToCategory,
   removeSongFromCategory,
+  generate,
 } from "@/lib/api"
+import { styleSummary, useStyles } from "@/lib/styles"
 import { formatDuration } from "@/lib/format"
 import { downloadSong } from "@/lib/download"
 import { usePlayer } from "@/lib/player"
@@ -20,6 +22,10 @@ const REASON_TEXT: Record<string, string> = {
   invalid_spec: "模型输出不合规",
   empty: "模型返回空响应",
   text_changed: "模型改动了歌词，已用规则断行",
+  missing_genre: "模型输出缺少曲风词",
+  missing_timbre: "模型输出缺少人声音色",
+  conflict: "模型输出含冲突的风格词",
+  unknown_genre: "未能识别曲风，已随机选择",
 }
 
 /** 从 llm_status 里挑出回退的阶段,组成「阶段：原因」说明。字段缺失或格式坏都当作"没有降级"。 */
@@ -43,6 +49,7 @@ export default function SongCard({
   categories = [],
   onCategoryChanged,
   onCategoriesChanged,
+  onRegenerate,
 }: {
   song: Song
   onPlay: (s: Song) => void
@@ -55,6 +62,8 @@ export default function SongCard({
   onCategoryChanged?: (songId: string, categoryIds: string[]) => void
   /** 面板里新建了一个分类,调用方借机刷新分类列表(含新的这一条和最新计数) */
   onCategoriesChanged?: () => void
+  /** 「换一种」提交成功后回调;库页借此重新开始轮询生成中的任务 */
+  onRegenerate?: () => void
 }) {
   const [fav, setFav] = useState(song.favorite === 1)
   const [deleting, setDeleting] = useState(false)
@@ -68,6 +77,34 @@ export default function SongCard({
   const [renaming, setRenaming] = useState(false)
   const { current, stop } = usePlayer()
   const degraded = degradedNotes(song.llm_status)
+  const styles = useStyles()
+  const summary = styleSummary(song.spec_json, styles)
+  const [regenNote, setRegenNote] = useState("")
+
+  async function handleRegenerate() {
+    if (regenNote) return
+    try {
+      const spec = JSON.parse(song.spec_json)
+      // 同曲风、同性别、新 seed:换一组乐器/音色/质感,而不是换成别的曲风
+      await generate({
+        lyrics: song.lyrics,
+        title: "",
+        feeling: song.feeling,
+        length: "auto",
+        seed: null,
+        instrumental: song.instrumental === 1,
+        overrides: {
+          preset: spec.style_draw.preset_id,
+          vocal_gender: spec.vocal?.gender || "",
+        },
+      })
+      setRegenNote("已提交")
+      onRegenerate?.()
+    } catch {
+      setRegenNote("提交失败")
+    }
+    setTimeout(() => setRegenNote(""), 2000)
+  }
 
   async function handleDelete() {
     if (!window.confirm(`确定删除《${title}》？此操作不可恢复。`)) return
@@ -320,6 +357,32 @@ export default function SongCard({
         <div className="text-muted" style={{ fontSize: 10.5, marginBottom: 7 }}>
           {song.feeling}
         </div>
+        {summary && (
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}
+          >
+            <span className="text-muted" style={{ fontSize: 10.5 }}>
+              {summary}
+            </span>
+            <button
+              onClick={handleRegenerate}
+              disabled={!!regenNote}
+              title="同曲风换一组乐器与音色,重新生成"
+              style={{
+                border: "1px solid var(--line)",
+                background: "rgba(255,255,255,.55)",
+                color: "var(--brand)",
+                borderRadius: 6,
+                fontSize: 10.5,
+                padding: "1px 6px",
+                cursor: regenNote ? "default" : "pointer",
+                flex: "0 0 auto",
+              }}
+            >
+              {regenNote || "换一种"}
+            </button>
+          </div>
+        )}
         <div
           style={{
             display: "flex",

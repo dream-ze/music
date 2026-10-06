@@ -48,6 +48,7 @@ function LibraryContent() {
   }, [])
 
   // 有任务在跑就每 5 秒查一次;某个任务从列表消失 = 生成完了,重拉歌曲让它出现在原位
+  const [pendingNonce, setPendingNonce] = useState(0)
   const prevIds = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!showPending) {
@@ -77,7 +78,7 @@ function LibraryContent() {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [showPending, loadSongs])
+  }, [showPending, loadSongs, pendingNonce])
 
   const tabStyle = (on: boolean) =>
     ({
@@ -176,6 +177,7 @@ function LibraryContent() {
             key={s.id}
             song={s}
             onPlay={play}
+            onRegenerate={() => setPendingNonce((n) => n + 1)}
             categories={categories}
             onDeleted={(id) => setSongs((cur) => cur.filter((x) => x.id !== id))}
             onCategoryChanged={(id, newCategoryIds) => {

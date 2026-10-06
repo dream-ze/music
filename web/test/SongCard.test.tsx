@@ -7,6 +7,7 @@ import {
   addSongToCategory,
   removeSongFromCategory,
   createCategory,
+  generate,
 } from "@/lib/api"
 import { downloadSong } from "@/lib/download"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
@@ -22,6 +23,14 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   addSongToCategory: vi.fn().mockResolvedValue([]),
   removeSongFromCategory: vi.fn().mockResolvedValue([]),
   createCategory: vi.fn(),
+  // 用 vi.fn(impl) 而不是 mockResolvedValue:本文件 afterEach 会 restoreAllMocks,
+  // 只有构造时传入的实现会被保留
+  generate: vi.fn(async () => ({ job_id: "j9" })),
+  getStyles: vi.fn(async () => ({
+    genres: [{ id: "pop.city_pop", label: "City Pop", family: "pop" }],
+    timbres: [{ id: "breathy", label: "气声" }],
+    creativity: [],
+  })),
 }))
 
 const song = {
@@ -273,5 +282,47 @@ describe("SongCard 降级标记", () => {
     } as Song
     render(<SongCard song={degraded} onPlay={vi.fn()} />)
     expect(screen.getByText("降级").getAttribute("title")).toContain("歌曲规划：已回退")
+  })
+})
+
+const styled = {
+  ...song,
+  lyrics: "[Verse]\n词",
+  instrumental: 0,
+  spec_json: JSON.stringify({
+    vocal: { gender: "female" },
+    style_draw: { preset_id: "pop.city_pop", vocal_timbre: "breathy",
+                  vocal_gender: "female", bpm: 108, fusion_id: null },
+  }),
+} as Song
+
+describe("SongCard 风格", () => {
+  it("显示风格摘要", async () => {
+    render(<SongCard song={styled} onPlay={vi.fn()} />)
+    expect(await screen.findByText("City Pop · 气声女声 · 108 BPM")).toBeTruthy()
+  })
+
+  it("老歌不显示摘要和「换一种」", () => {
+    render(<SongCard song={song} onPlay={vi.fn()} />)
+    expect(screen.queryByText("换一种")).toBeNull()
+  })
+
+  it("「换一种」用同曲风同性别、新 seed 重新提交", async () => {
+    const onRegenerate = vi.fn()
+    render(<SongCard song={styled} onPlay={vi.fn()} onRegenerate={onRegenerate} />)
+    fireEvent.click(screen.getByText("换一种"))
+    await waitFor(() => expect(onRegenerate).toHaveBeenCalled())
+    const input = vi.mocked(generate).mock.calls.at(-1)![0]
+    expect(input).toMatchObject({
+      lyrics: "[Verse]\n词", feeling: song.feeling, seed: null, length: "auto",
+      overrides: { preset: "pop.city_pop", vocal_gender: "female" },
+    })
+  })
+
+  it("新降级原因有中文说明", () => {
+    const s = { ...song, llm_status: JSON.stringify([
+      { stage: "歌曲规划", ok: false, reason: "missing_timbre" }]) } as Song
+    render(<SongCard song={s} onPlay={vi.fn()} />)
+    expect(screen.getByText("降级").getAttribute("title")).toContain("缺少人声音色")
   })
 })
