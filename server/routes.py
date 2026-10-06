@@ -4,7 +4,7 @@ from urllib.parse import quote
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from server import db, models, inspirations, storage
+from server import db, models, inspirations, queue as jobqueue, storage
 from server.progress import typical_seconds, with_eta
 from server.auth import require_passcode
 from src.presets import PRESETS, UI_GENRES
@@ -27,8 +27,18 @@ def _content_disposition(title: str) -> str:
 async def generate(req: models.GenerateRequest, request: Request,
                    who: str = Depends(require_passcode)):
     payload = req.model_dump()
-    job_id = await request.app.state.queue.enqueue(payload, who)
-    return {"job_id": job_id}
+    payloads = [payload]
+    if req.count == 2:
+        # 歌名上限 20 字:给后缀 " · A" 留出 4 个字
+        base = jobqueue.song_title(payload)[:16]
+        payloads = []
+        for i, label in enumerate("AB"):
+            p = {**payload, "title": f"{base} · {label}"}
+            if payload.get("seed") is not None:
+                p["seed"] = payload["seed"] + i      # 固定 seed 时两版也要不同
+            payloads.append(p)
+    ids = [await request.app.state.queue.enqueue(p, who) for p in payloads]
+    return {"job_id": ids[0], "job_ids": ids}
 
 
 @router.get("/jobs/active")

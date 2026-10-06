@@ -3,7 +3,7 @@ import { useState } from "react"
 import { generate, getJob } from "@/lib/api"
 import { usePlayer } from "@/lib/player"
 import AdvancedSettings, { type AdvValue } from "./AdvancedSettings"
-import type { GenerateInput } from "@/lib/types"
+import type { GenerateInput, Job } from "@/lib/types"
 import { useStyles } from "@/lib/styles"
 import { formatEta } from "@/lib/format"
 
@@ -16,6 +16,7 @@ export default function GenerateForm() {
   const [lyrics, setLyrics] = useState("")
   const [feeling, setFeeling] = useState("")
   const [instrumental, setInstrumental] = useState(false)
+  const [count, setCount] = useState<1 | 2>(1)
   const [adv, setAdv] = useState<AdvValue>({
     mood: [],
     vocal_gender: "",
@@ -27,32 +28,41 @@ export default function GenerateForm() {
   const [status, setStatus] = useState<Status>("idle")
   const [msg, setMsg] = useState("")
 
-  async function poll(jobId: string, startedAt: number) {
+  /** 一个任务当前状态的一句话描述 */
+  function describe(job: Job, startedAt: number): string {
+    const eta = formatEta(job.eta_seconds)
+    if (job.status === "queued") {
+      const ahead = Math.max(0, (job.position ?? 1) - 1)
+      const wait = eta ? ` · 预计${eta}后完成` : ""
+      return ahead > 0 ? `排队中 · 前面还有 ${ahead} 首${wait}` : `排队中 · 即将开始${wait}`
+    }
+    if (job.stage) {
+      const pct = Math.round((job.progress ?? 0) * 100)
+      return `${job.stage} ${pct}%${eta ? ` · ${eta}` : ""}`
+    }
+    return `生成中… ${Math.round((Date.now() - startedAt) / 1000)}s`
+  }
+
+  /** 跟踪一个或多个(两版对比)任务直到全部结束;完成后播放第一首出来的歌 */
+  async function poll(jobIds: string[], startedAt: number) {
+    const labels = jobIds.length > 1 ? jobIds.map((_, i) => `版本 ${"AB"[i]} · `) : [""]
     for (;;) {
-      const job = await getJob(jobId)
-      if (job.status === "done") {
-        if (job.song) play(job.song)
-        setStatus("idle")
+      const jobs = await Promise.all(jobIds.map((id) => getJob(id)))
+      const pending = jobs.findIndex((j) => j.status === "queued" || j.status === "running")
+      if (pending === -1) {
+        const firstSong = jobs.find((j) => j.status === "done" && j.song)?.song
+        if (firstSong) play(firstSong)
+        const failed = jobs.findIndex((j) => j.status === "error")
+        if (failed === -1) {
+          setStatus("idle")
+        } else {
+          setStatus("error")
+          setMsg(`${labels[failed]}${jobs[failed].error || "生成失败"}`)
+        }
         return
       }
-      if (job.status === "error") {
-        setStatus("error")
-        setMsg(job.error || "生成失败")
-        return
-      }
-      setStatus(job.status)
-      const eta = formatEta(job.eta_seconds)
-      if (job.status === "queued") {
-        const ahead = Math.max(0, (job.position ?? 1) - 1)
-        const wait = eta ? ` · 预计 ${eta}后完成` : ""
-        setMsg(ahead > 0 ? `排队中 · 前面还有 ${ahead} 首${wait}` : `排队中 · 即将开始${wait}`)
-      } else if (job.stage) {
-        const pct = Math.round((job.progress ?? 0) * 100)
-        setMsg(`${job.stage} ${pct}%${eta ? ` · ${eta}` : ""}`)
-      } else {
-        const elapsed = Math.round((Date.now() - startedAt) / 1000)
-        setMsg(`生成中… ${elapsed}s`)
-      }
+      setStatus(jobs[pending].status as Status)
+      setMsg(labels[pending] + describe(jobs[pending], startedAt))
       await new Promise((r) => setTimeout(r, 2500))
     }
   }
@@ -68,6 +78,7 @@ export default function GenerateForm() {
       length: "auto", // 时长按歌词自动估算,不再让用户手动选挡位
       seed: null,
       instrumental,
+      count,
       overrides: {
         preset: adv.preset,
         mood: adv.mood,
@@ -78,8 +89,8 @@ export default function GenerateForm() {
       },
     }
     try {
-      const { job_id } = await generate(input)
-      await poll(job_id, startedAt)
+      const { job_id, job_ids } = await generate(input)
+      await poll(job_ids?.length ? job_ids : [job_id], startedAt)
     } catch (e) {
       setStatus("error")
       setMsg(e instanceof Error ? e.message : "提交失败")
@@ -151,6 +162,30 @@ export default function GenerateForm() {
           }}
         />
         <AdvancedSettings styles={styles} value={adv} onChange={(patch) => setAdv((s) => ({ ...s, ...patch }))} />
+        <p className="text-muted" style={{ fontSize: 12 }}>
+          版本
+        </p>
+        <div style={{ display: "flex", gap: 7 }}>
+          {([1, 2] as const).map((n) => (
+            <span
+              key={n}
+              role="button"
+              aria-pressed={count === n}
+              onClick={() => setCount(n)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 12,
+                border: count === n ? "1px solid var(--brand)" : "1px solid var(--line)",
+                background: count === n ? "rgba(47,107,216,.16)" : "rgba(255,255,255,.55)",
+                color: count === n ? "var(--brand)" : "var(--muted)",
+              }}
+            >
+              {n === 1 ? "1 首" : "2 首对比"}
+            </span>
+          ))}
+        </div>
         <button
           className="glow-btn"
           onClick={onSubmit}

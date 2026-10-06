@@ -60,4 +60,32 @@ describe("GenerateForm 歌名", () => {
     fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
     expect(await screen.findByText("旋律规划 30% · 约 4 分钟")).toBeTruthy()
   })
+
+  it("选 2 首对比:一次提交 count=2,两个任务都跟踪到完成", async () => {
+    vi.mocked(generate).mockClear()
+    vi.mocked(generate).mockResolvedValueOnce({ job_id: "j1", job_ids: ["j1", "j2"] })
+    vi.mocked(getJob).mockReset()
+    vi.mocked(getJob).mockResolvedValue({ status: "done", position: 0, song: null, error: null })
+    render(<GenerateForm />)
+    fireEvent.click(screen.getByText("2 首对比"))
+    fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
+    await waitFor(() => expect(getJob).toHaveBeenCalledWith("j2"))
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(generate).mock.calls[0][0].count).toBe(2)
+    expect(getJob).toHaveBeenCalledWith("j1")
+  })
+
+  it("两版生成中时按版本显示进度", async () => {
+    vi.mocked(generate).mockResolvedValueOnce({ job_id: "j1", job_ids: ["j1", "j2"] })
+    vi.mocked(getJob).mockReset()
+    vi.mocked(getJob).mockImplementation(async (id: string) =>
+      id === "j1"
+        ? { status: "running", position: 0, song: null, error: null, stage: "音频合成",
+            progress: 0.5, eta_seconds: 100 }
+        : { status: "queued", position: 2, song: null, error: null, eta_seconds: 400 })
+    render(<GenerateForm />)
+    fireEvent.click(screen.getByText("2 首对比"))
+    fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
+    expect(await screen.findByText("版本 A · 音频合成 50% · 约 2 分钟")).toBeTruthy()
+  })
 })

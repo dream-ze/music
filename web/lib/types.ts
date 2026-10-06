@@ -69,6 +69,8 @@ export interface GenerateInput {
   length: "auto" | "full" | "short"
   seed: number | null
   instrumental: boolean
+  /** 一次出几个版本;2 = 同样设置出 A/B 两首对比 */
+  count?: 1 | 2
   overrides: {
     genre?: string[]
     mood?: string[]

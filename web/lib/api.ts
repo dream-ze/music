@@ -20,7 +20,8 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export function generate(input: GenerateInput) {
-  return req<{ job_id: string }>("/api/generate", {
+  // job_ids:count=2 时有两个任务;job_id 是第一个(兼容旧写法)
+  return req<{ job_id: string; job_ids?: string[] }>("/api/generate", {
     method: "POST",
     body: JSON.stringify(input),
   })

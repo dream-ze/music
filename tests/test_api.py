@@ -386,3 +386,44 @@ def test_active_jobs_include_stage_progress_and_eta(monkeypatch, tmp_path):
     assert jobs["r1"]["eta_seconds"] > 0 and jobs["q1"]["eta_seconds"] > jobs["r1"]["eta_seconds"]
     one = client.get("/api/jobs/q1").json()
     assert one["eta_seconds"] == jobs["q1"]["eta_seconds"] and "stage" in one
+
+
+def test_generate_count_two_enqueues_a_and_b(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "c2.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    payloads = []
+
+    class FakeQ:
+        async def enqueue(self, payload, created_by):
+            payloads.append(payload)
+            return f"j{len(payloads)}"
+    appmod.app.state.queue = FakeQ()
+    r = client.post("/api/generate", json=_body(title="冬天的一首很长很长很长很长的歌名", count=2))
+    assert r.status_code == 200
+    assert r.json() == {"job_id": "j1", "job_ids": ["j1", "j2"]}
+    titles = [p["title"] for p in payloads]
+    assert titles[0].endswith(" · A") and titles[1].endswith(" · B")
+    assert all(len(t) <= 20 for t in titles)
+
+
+def test_generate_count_defaults_to_one_and_rejects_three(monkeypatch, tmp_path):
+    captured = _with_fake_queue(monkeypatch, tmp_path, "c1.db")
+    r = client.post("/api/generate", json=_body())
+    assert r.json()["job_ids"] == ["jP"] and captured["title"] == ""
+    assert client.post("/api/generate", json=_body(count=3)).status_code == 422
+
+
+def test_generate_count_two_with_fixed_seed_gets_distinct_seeds(monkeypatch, tmp_path):
+    from server import db
+    db.init_db(str(tmp_path / "c3.db"))
+    monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
+    seeds = []
+
+    class FakeQ:
+        async def enqueue(self, payload, created_by):
+            seeds.append(payload["seed"])
+            return "j"
+    appmod.app.state.queue = FakeQ()
+    client.post("/api/generate", json=_body(seed=7, count=2))
+    assert seeds == [7, 8]

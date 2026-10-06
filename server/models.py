@@ -59,6 +59,8 @@ class GenerateRequest(BaseModel):
     seed: int | None = None
     instrumental: bool = False
     overrides: Overrides = Field(default_factory=Overrides)
+    # 一次出几个版本:2 = 同样设置排两个任务,歌名加 · A / · B,便于对比挑选
+    count: int = Field(default=1, ge=1, le=2)
 
     @field_validator("title")
     @classmethod
