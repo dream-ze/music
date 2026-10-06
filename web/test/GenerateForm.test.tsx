@@ -88,4 +88,23 @@ describe("GenerateForm 歌名", () => {
     fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
     expect(await screen.findByText("版本 A · 音频合成 50% · 约 2 分钟")).toBeTruthy()
   })
+
+  it("从「复用设置」进入时预填歌词、感觉与风格设置", async () => {
+    vi.mocked(generate).mockClear()
+    vi.mocked(generate).mockResolvedValueOnce({ job_id: "j1" })
+    vi.mocked(getJob).mockReset()
+    vi.mocked(getJob).mockResolvedValue({ status: "done", position: 0, song: null, error: null })
+    sessionStorage.setItem("zemusic.reuse", JSON.stringify({
+      lyrics: "复用的词", feeling: "复用的感觉", instrumental: false,
+      adv: { preset: "jazz.lounge", vocal_timbre: "breathy", creativity: "fusion" },
+    }))
+    render(<GenerateForm />)
+    expect(await screen.findByDisplayValue("复用的词")).toBeTruthy()
+    expect(screen.getByDisplayValue("复用的感觉")).toBeTruthy()
+    fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
+    await waitFor(() => expect(generate).toHaveBeenCalled())
+    expect(vi.mocked(generate).mock.calls[0][0].overrides).toMatchObject({
+      preset: "jazz.lounge", vocal_timbre: "breathy", creativity: "fusion" })
+    expect(sessionStorage.getItem("zemusic.reuse")).toBeNull()
+  })
 })

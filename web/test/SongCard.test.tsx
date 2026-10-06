@@ -12,6 +12,9 @@ import {
 import { downloadSong } from "@/lib/download"
 import { SONG_DRAG_MIME, type Song, type Category } from "@/lib/types"
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
+
 vi.mock("@/lib/download", () => ({
   downloadSong: vi.fn().mockResolvedValue(undefined),
 }))
@@ -324,5 +327,18 @@ describe("SongCard 风格", () => {
       { stage: "歌曲规划", ok: false, reason: "missing_timbre" }]) } as Song
     render(<SongCard song={s} onPlay={vi.fn()} />)
     expect(screen.getByText("降级").getAttribute("title")).toContain("缺少人声音色")
+  })
+})
+
+describe("SongCard 复用设置", () => {
+  it("点「复用设置」把这首歌的设置存起来并跳到创作页", () => {
+    sessionStorage.clear()
+    push.mockClear()
+    render(<SongCard song={styled} onPlay={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText("复用设置"))
+    expect(push).toHaveBeenCalledWith("/")
+    const saved = JSON.parse(sessionStorage.getItem("zemusic.reuse")!)
+    expect(saved.lyrics).toBe("[Verse]\n词")
+    expect(saved.adv.preset).toBe("pop.city_pop")
   })
 })

@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { takeReuse } from "@/lib/reuse"
 import { generate, getJob } from "@/lib/api"
 import { usePlayer } from "@/lib/player"
 import AdvancedSettings, { type AdvValue } from "./AdvancedSettings"
@@ -25,6 +26,15 @@ export default function GenerateForm() {
     vocal_timbre: "",
     creativity: "normal",
   })
+  // 从歌曲卡片「复用设置」跳过来:预填一次就清掉
+  useEffect(() => {
+    const d = takeReuse()
+    if (!d) return
+    setLyrics(d.lyrics)
+    setFeeling(d.feeling)
+    setInstrumental(d.instrumental)
+    setAdv((s) => ({ ...s, ...d.adv }))
+  }, [])
   const [status, setStatus] = useState<Status>("idle")
   const [msg, setMsg] = useState("")
 

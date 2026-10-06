@@ -9,6 +9,8 @@ import {
   generate,
 } from "@/lib/api"
 import { styleSummary, useStyles } from "@/lib/styles"
+import { draftFromSong, saveReuse } from "@/lib/reuse"
+import { useRouter } from "next/navigation"
 import { formatDuration } from "@/lib/format"
 import { downloadSong } from "@/lib/download"
 import { usePlayer } from "@/lib/player"
@@ -77,7 +79,13 @@ export default function SongCard({
   const [renaming, setRenaming] = useState(false)
   const { current, stop } = usePlayer()
   const degraded = degradedNotes(song.llm_status)
+  const router = useRouter()
   const styles = useStyles()
+
+  function handleReuse() {
+    saveReuse(draftFromSong(song))
+    router.push("/")
+  }
   const summary = styleSummary(song.spec_json, styles)
   const [regenNote, setRegenNote] = useState("")
 
@@ -442,6 +450,21 @@ export default function SongCard({
         >
           <span>{formatDuration(song.duration_sec)}</span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              aria-label="复用设置"
+              onClick={handleReuse}
+              title="用这首歌的歌词和风格设置再写一首"
+              style={{
+                border: "none",
+                background: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                fontSize: 13,
+                padding: 2,
+              }}
+            >
+              ↺
+            </button>
             <button
               aria-label="下载"
               onClick={handleDownload}
