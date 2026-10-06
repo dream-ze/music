@@ -22,6 +22,7 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
         seed=payload.get("seed"),
         overrides=payload.get("overrides") or {},
         recent=db.recent_style_draws(created_by),
+        instrumental=bool(payload.get("instrumental")),
     )
     song_id = uuid.uuid4().hex
     wav = result["song"]

@@ -44,11 +44,19 @@ _ALL = [
 
 TIMBRES: dict[str, VocalTimbre] = {t.id: t for t in _ALL}
 
+# 纯音乐用的伪音色:不在 TIMBRES(前端列表、采样)里,只由流水线在纯音乐模式下指定。
+# caption 必须写明 instrumental / no vocals,骨架里的 {vocal} 也用它填。
+INSTRUMENTAL = VocalTimbre(id="instrumental", label="纯音乐",
+                           caption="instrumental lead melody (no vocals)",
+                           keywords=["instrumental", "no vocals", "without vocals"])
+
 
 def get_timbre(timbre_id: str | None) -> VocalTimbre | None:
     """空 → None(不指定);未知 id 抛 ValueError(API 层转 422)。"""
     if not timbre_id:
         return None
+    if timbre_id == INSTRUMENTAL.id:
+        return INSTRUMENTAL
     try:
         return TIMBRES[timbre_id]
     except KeyError as exc:

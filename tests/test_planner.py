@@ -184,3 +184,22 @@ def test_skeleton_passes_its_own_check_for_every_timbre(pid):
         spec = planner.skeleton_spec(p, d)
         assert spec.caption_full is False and spec.bpm == d.bpm
         assert planner.check_caption(spec.caption, p, get_timbre(tid)) is None, spec.caption
+
+
+INSTR_DRAW = DRAW.model_copy(update={"vocal_timbre": "instrumental", "vocal_gender": ""})
+INSTR_CAPTION = ("A warm 90s boom bap instrumental hip-hop beat with jazzy piano samples, "
+                 "a dusty drum break and upright bass, no vocals.")
+
+
+def test_instrumental_prompt_and_check(monkeypatch):
+    calls = _llm(monkeypatch, json.dumps(dict(GOOD, caption=INSTR_CAPTION)))
+    events = []
+    spec = planner.plan_song("说唱", preset=BOOM, draw=INSTR_DRAW, status_events=events)
+    assert events == [{"stage": "歌曲规划", "ok": True}]
+    assert "纯音乐" in calls[0]["prompt"] and "laid-back" not in calls[0]["prompt"]
+    assert spec.vocal.timbre == "instrumental" and spec.vocal.gender == ""
+
+
+def test_instrumental_skeleton_passes_check():
+    spec = planner.skeleton_spec(BOOM, INSTR_DRAW)
+    assert planner.check_caption(spec.caption, BOOM, get_timbre("instrumental")) is None

@@ -31,6 +31,8 @@ class SongSpec(BaseModel):
     preset_id: str = "generic"
     # 本次风格采样结果(StyleDraw.model_dump());用于复现、展示与防重复。老数据为 None
     style_draw: dict | None = None
+    # 纯音乐:歌词固定为 [Instrumental],出歌时打开 ACE-Step 的 instrumental
+    instrumental: bool = False
 
     @field_validator("caption", "genre", "mood", "instrument")
     @classmethod

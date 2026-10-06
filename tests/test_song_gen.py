@@ -186,7 +186,7 @@ def test_generate_song_forwards_new_params(fake_acestep, monkeypatch, tmp_path):
         def __init__(self, **kw):
             pass
 
-    def _gen(dit, llm, params, cfg, save_dir):
+    def _gen(dit, llm, params, cfg, save_dir, **kw):
         return _t.SimpleNamespace(success=True, audios=[{"path": str(tmp_path / "o.wav")}], error=None)
 
     inf = _t.ModuleType("acestep.inference")
@@ -337,3 +337,44 @@ def test_length_auto_uses_estimate_duration():
     lyrics = "[Verse]\n" + "字" * 100
     p = build_acestep_params(safe_spec(), lyrics, length="auto")
     assert p["duration"] == 20 + 100 // 2  # 70
+
+
+def test_estimate_duration_instrumental_is_fixed():
+    from src.song_gen import estimate_duration
+    assert estimate_duration("[Instrumental]", safe_spec().model_copy(update={"instrumental": True})) == 120
+
+
+def _capture_generation(fake_acestep, monkeypatch, tmp_path):
+    import types as _t
+    captured = {}
+
+    class _GP:
+        def __init__(self, **kw):
+            captured.update(kw)
+
+    class _GC:
+        def __init__(self, **kw):
+            pass
+
+    def _gen(dit, llm, params, cfg, save_dir, progress=None):
+        captured["progress"] = progress
+        if progress:
+            progress(0.1, "Phase 1")
+            progress(0.6, desc="Generating music...")
+            progress(0.85, desc="Decoding audio...")
+        return _t.SimpleNamespace(success=True, audios=[{"path": str(tmp_path / "o.wav")}], error=None)
+
+    inf = _t.ModuleType("acestep.inference")
+    inf.GenerationParams, inf.GenerationConfig, inf.generate_music = _GP, _GC, _gen
+    monkeypatch.setitem(sys.modules, "acestep.inference", inf)
+    fake_acestep()
+    monkeypatch.delenv("ZE_FAKE_GEN", raising=False)
+    return captured
+
+
+def test_generate_song_instrumental(fake_acestep, monkeypatch, tmp_path):
+    captured = _capture_generation(fake_acestep, monkeypatch, tmp_path)
+    spec = _hiphop_spec().model_copy(update={"instrumental": True})
+    song_gen.generate_song("[Instrumental]", spec, length="auto", out_path=str(tmp_path / "o.wav"))
+    assert captured["instrumental"] is True and captured["lyrics"] == "[Instrumental]"
+    assert captured["duration"] == 120.0

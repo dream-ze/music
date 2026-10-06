@@ -37,6 +37,11 @@ describe("styleSummary", () => {
       "pop.city_pop · breathy男声 · 108 BPM",
     )
   })
+  it("纯音乐显示「纯音乐」,不带性别", () => {
+    expect(
+      styleSummary(spec({ ...DRAW, vocal_timbre: "instrumental", vocal_gender: "" }), STYLES),
+    ).toBe("City Pop · 纯音乐 · 108 BPM")
+  })
   it("老歌没有 style_draw 或 JSON 坏掉返回 null", () => {
     expect(styleSummary(spec(null), STYLES)).toBeNull()
     expect(styleSummary("{bad", STYLES)).toBeNull()

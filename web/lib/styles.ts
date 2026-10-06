@@ -58,7 +58,8 @@ export function styleSummary(
     list?.find((o) => o.id === id)?.label ?? id
   const genre = name(styles?.genres, draw.preset_id)
   const fusion = draw.fusion_id ? ` × ${name(styles?.genres, draw.fusion_id)}` : ""
-  const timbre = name(styles?.timbres, draw.vocal_timbre)
+  const timbre =
+    draw.vocal_timbre === "instrumental" ? "纯音乐" : name(styles?.timbres, draw.vocal_timbre)
   const gender = GENDER_LABEL[draw.vocal_gender] ?? ""
   return `${genre}${fusion} · ${timbre}${gender} · ${draw.bpm} BPM`
 }

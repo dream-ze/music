@@ -30,3 +30,9 @@ def test_get_timbre():
     assert get_timbre("breathy").label == "气声"
     with pytest.raises(ValueError):
         get_timbre("robot")
+
+
+def test_instrumental_pseudo_timbre_not_listed_but_resolvable():
+    t = get_timbre("instrumental")
+    assert t.id == "instrumental" and "instrumental" not in TIMBRES   # 不出现在前端音色列表
+    assert any(k in t.caption.lower() for k in t.keywords)

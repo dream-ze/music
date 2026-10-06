@@ -40,4 +40,14 @@ describe("GenerateForm 歌名", () => {
     expect(o).toMatchObject({ preset: "jazz.lounge", vocal_timbre: "breathy", creativity: "fusion" })
     expect(o.genre).toBeUndefined()
   })
+
+  it("纯音乐开关随提交发送,并让歌词变为可选", async () => {
+    vi.mocked(generate).mockClear()
+    render(<GenerateForm />)
+    fireEvent.click(screen.getByLabelText("纯音乐（无人声）"))
+    expect(screen.getByPlaceholderText("纯音乐无需歌词")).toBeTruthy()
+    fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
+    await waitFor(() => expect(generate).toHaveBeenCalled())
+    expect(vi.mocked(generate).mock.calls[0][0].instrumental).toBe(true)
+  })
 })

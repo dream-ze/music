@@ -132,3 +132,13 @@ def test_explicit_llm_options_override_configured_provider(monkeypatch, tmp_path
     pipeline.make_song("词", "女声 R&B", work_dir=str(tmp_path),
                        llm_options={"provider": "gemini"})
     assert seen and {k.get("provider") for k in seen} == {"gemini"}
+
+
+def test_instrumental_skips_lyrics_and_marks_spec(capture, tmp_path):
+    result = pipeline.make_song("这些词会被忽略", "lo-fi", seed=2, work_dir=str(tmp_path),
+                                instrumental=True, overrides={"vocal_timbre": "breathy"})
+    assert "lyrics_preset" not in capture                       # 不调断行
+    assert result["structured_lyrics"] == "[Instrumental]"
+    assert capture["draw"].vocal_timbre == "instrumental" and capture["draw"].vocal_gender == ""
+    assert capture["gen_spec"].instrumental is True
+    assert [e["stage"] for e in result["llm_status"]] == ["曲风识别", "歌曲规划"]

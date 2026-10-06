@@ -14,6 +14,7 @@ export default function GenerateForm() {
   const [title, setTitle] = useState("")
   const [lyrics, setLyrics] = useState("")
   const [feeling, setFeeling] = useState("")
+  const [instrumental, setInstrumental] = useState(false)
   const [adv, setAdv] = useState<AdvValue>({
     mood: [],
     vocal_gender: "",
@@ -60,7 +61,7 @@ export default function GenerateForm() {
       feeling,
       length: "auto", // 时长按歌词自动估算,不再让用户手动选挡位
       seed: null,
-      instrumental: false,
+      instrumental,
       overrides: {
         preset: adv.preset,
         mood: adv.mood,
@@ -83,11 +84,23 @@ export default function GenerateForm() {
   return (
     <div className="gen-form">
       <div className="bg-panel gen-lyrics" style={{ padding: 16, borderRadius: 14 }}>
-        <h4 style={{ marginTop: 0, fontSize: 14 }}>歌词</h4>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h4 style={{ marginTop: 0, fontSize: 14 }}>歌词</h4>
+          <label style={{ fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={instrumental}
+              onChange={(e) => setInstrumental(e.target.checked)}
+              style={{ marginRight: 4 }}
+            />
+            纯音乐（无人声）
+          </label>
+        </div>
         <textarea
           value={lyrics}
           onChange={(e) => setLyrics(e.target.value)}
-          placeholder={"[Verse]\n我曾走过那条街……"}
+          disabled={instrumental}
+          placeholder={instrumental ? "纯音乐无需歌词" : "[Verse]\n我曾走过那条街……"}
           rows={10}
           style={{
             width: "100%",

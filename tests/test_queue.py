@@ -157,3 +157,21 @@ def test_run_generation_passes_recent_and_saves_result_seed(monkeypatch, tmp_pat
                                 "overrides": {}}, "ze")
     assert seen["recent"] == [{"preset_id": "rock.band"}]
     assert saved["seed"] == 42
+
+
+def test_run_generation_passes_instrumental(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_make_song(*a, **k):
+        seen.update(k)
+        return {"song": str(tmp_path / "song.wav"), "spec": _FakeSpec(),
+                "structured_lyrics": "[Instrumental]", "llm_status": [], "degraded": False}
+    monkeypatch.setattr(queue.pipeline, "make_song", fake_make_song)
+    monkeypatch.setattr(queue.db, "recent_style_draws", lambda who, limit=5: [])
+    monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
+    monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 1.0)
+    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: key)
+    monkeypatch.setattr(queue.db, "insert_song", lambda s: None)
+    queue.run_generation("j1", {"lyrics": "", "feeling": "", "instrumental": True,
+                                "overrides": {}}, "ze")
+    assert seen["instrumental"] is True

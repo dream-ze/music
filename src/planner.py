@@ -23,7 +23,7 @@ _TEMPLATE = """用户想要的感觉:{style}
 - 乐器:{instruments}
 - 质感:{textures};年代/制作:{era}
 - 情绪:{moods}
-- 人声:{gender} {vocal}
+- 人声:{vocal_line}
 - 速度:{bpm} BPM
 {fusion}- 禁止出现的词:{avoid}
 参考:
@@ -91,7 +91,7 @@ def _genres(preset: Preset, draw: StyleDraw) -> list[str]:
 
 
 def _vocal_phrase(draw: StyleDraw, timbre: VocalTimbre | None) -> str:
-    return f"{draw.vocal_gender} {timbre.caption if timbre else 'vocal'}"
+    return f"{draw.vocal_gender} {timbre.caption if timbre else 'vocal'}".strip()
 
 
 def skeleton_spec(preset: Preset, draw: StyleDraw | None = None) -> SongSpec:
@@ -140,8 +140,9 @@ def _build_prompt(style_desc: str, lyrics_hint: str, preset: Preset, draw: Style
         textures=", ".join(draw.textures) or "(不限)",
         era=draw.era,
         moods=", ".join(draw.moods) or "(不限)",
-        gender=draw.vocal_gender,
-        vocal=timbre.caption if timbre else "vocal",
+        vocal_line=("无,纯音乐(caption 必须写明 instrumental 或 no vocals)"
+                    if timbre and timbre.id == "instrumental"
+                    else f"{draw.vocal_gender} {timbre.caption if timbre else 'vocal'}"),
         bpm=draw.bpm,
         fusion=fusion,
         avoid=", ".join(preset.avoid) or "(无)",

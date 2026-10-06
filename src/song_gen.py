@@ -19,6 +19,7 @@ _RATE_RAP = 3.5     # 字/秒
 _RATE_SUNG = 2.0    # 字/秒
 _MIN_DURATION = 30
 _MAX_DURATION = 240
+_INSTRUMENTAL_SEC = 120     # 纯音乐没有歌词可估,给一个完整器乐曲的常见长度
 
 
 def _is_rap(spec: SongSpec) -> bool:
@@ -29,7 +30,9 @@ def _is_rap(spec: SongSpec) -> bool:
 
 
 def estimate_duration(structured_lyrics: str, spec: SongSpec) -> int:
-    """按歌词长度估算时长(秒):20s 前奏尾奏 + 唱词量/唱速,夹在 [30,240] 之间。"""
+    """按歌词长度估算时长(秒):20s 前奏尾奏 + 唱词量/唱速,夹在 [30,240] 之间。纯音乐固定时长。"""
+    if spec.instrumental:
+        return _INSTRUMENTAL_SEC
     chars = 0.0
     for line in (structured_lyrics or "").splitlines():
         if _TAG_LINE.match(line):
@@ -233,7 +236,8 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
     fixed = seed is not None
     params = GenerationParams(
         caption=p["caption"],
-        lyrics=structured_lyrics,
+        lyrics="[Instrumental]" if spec.instrumental else structured_lyrics,
+        instrumental=spec.instrumental,
         duration=float(p["duration"]),
         bpm=p["bpm"],
         keyscale=p["keyscale"],
