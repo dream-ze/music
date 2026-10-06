@@ -65,6 +65,9 @@ export interface GenerateInput {
     vocal_gender?: string
     language?: string
     preset?: string
+    /** 人声音色 id;空 = 由后端按曲风挑 */
+    vocal_timbre?: string
+    creativity?: Creativity
   }
 }
 
@@ -74,4 +77,20 @@ export interface Inspiration {
   lyrics: string
   /** 风格预设 id;空表示不预选 */
   preset: string
+}
+
+export type Creativity = "pure" | "normal" | "fusion"
+
+/** 曲风 / 音色 / 创意度的一个选项;family 只有曲风有,用于分组 */
+export interface StyleOption {
+  id: string
+  label: string
+  family?: string
+}
+
+/** GET /api/styles 的返回 */
+export interface Styles {
+  genres: StyleOption[]
+  timbres: StyleOption[]
+  creativity: StyleOption[]
 }

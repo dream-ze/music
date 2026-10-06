@@ -1,4 +1,4 @@
-import type { Song, Job, ActiveJob, GenerateInput, Inspiration, Category } from "./types"
+import type { Song, Job, ActiveJob, GenerateInput, Inspiration, Category, Styles } from "./types"
 import { getPasscode } from "./passcode"
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
@@ -101,4 +101,8 @@ export async function removeSongFromCategory(songId: string, categoryId: string)
 export async function getInspirations() {
   const r = await req<{ inspirations: Inspiration[] }>("/api/inspirations")
   return r.inspirations
+}
+
+export function getStyles() {
+  return req<Styles>("/api/styles")
 }
