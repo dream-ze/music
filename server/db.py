@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import uuid
 import datetime as _dt
@@ -141,6 +142,24 @@ def list_songs(*, q: str = "", favorite: bool = False, mine: str = "",
         songs = [dict(r) for r in rows]
         _attach_category_ids(c, songs)
     return songs
+
+
+def recent_style_draws(created_by: str, limit: int = 5) -> list[dict]:
+    """同一用户最近几首的风格采样结果(新 → 旧),给采样器防重复。老歌没有 style_draw,跳过。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT spec_json FROM songs WHERE created_by=? ORDER BY created_at DESC LIMIT ?",
+            (created_by, limit),
+        ).fetchall()
+    out: list[dict] = []
+    for r in rows:
+        try:
+            draw = json.loads(r["spec_json"] or "{}").get("style_draw")
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(draw, dict):
+            out.append(draw)
+    return out
 
 
 def delete_song(song_id: str) -> bool:

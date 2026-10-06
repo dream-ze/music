@@ -248,3 +248,23 @@ def test_old_single_category_data_gets_backfilled_into_song_categories(tmp_path)
         c.execute("INSERT INTO songs (id, category_id) VALUES ('s1','c1')")
     db.init_db(p)
     assert db.get_song_category_ids("s1") == ["c1"]
+
+
+def test_recent_style_draws_filters_user_and_skips_old_songs(tmp_path):
+    import json
+    import time
+    from server import db
+    db.init_db(str(tmp_path / "r.db"))
+    rows = [("a", "ze", {"style_draw": {"preset_id": "rock.band"}}),
+            ("b", "ze", {"language": "zh"}),                              # 老歌:没有 style_draw
+            ("c", "other", {"style_draw": {"preset_id": "jazz.lounge"}}),
+            ("d", "ze", {"style_draw": {"preset_id": "lofi.chill"}})]
+    for sid, who, spec in rows:
+        db.insert_song({"id": sid, "title": sid, "lyrics": "", "feeling": "",
+                        "spec_json": json.dumps(spec), "structured_lyrics": "",
+                        "seed": 1, "mp3_url": "", "duration_sec": 1.0,
+                        "instrumental": 0, "created_by": who, "llm_status": "[]"})
+        time.sleep(0.002)          # created_at 精确到微秒,留出间隔保证排序稳定
+    got = db.recent_style_draws("ze", limit=5)
+    assert [d["preset_id"] for d in got] == ["lofi.chill", "rock.band"]   # 新 → 旧
+    assert db.recent_style_draws("ze", limit=1) == [{"preset_id": "lofi.chill"}]

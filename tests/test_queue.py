@@ -18,6 +18,7 @@ def test_run_generation_orchestrates(monkeypatch, tmp_path):
     monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
     saved = {}
     monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
+    monkeypatch.setattr(queue.db, "recent_style_draws", lambda who, limit=5: [])
 
     song = queue.run_generation("j1", {
         "lyrics": "词", "feeling": "女声", "length": "full",
@@ -134,3 +135,25 @@ def test_enqueue_stores_title_and_feeling(monkeypatch):
     a, b = asyncio.run(go())
     assert jobs[a]["title"] == "冬日甜心" and jobs[a]["feeling"] == "女声 hip hop"
     assert jobs[b]["title"] == "第一行" and jobs[b]["feeling"] == ""
+
+
+def test_run_generation_passes_recent_and_saves_result_seed(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_make_song(*a, **k):
+        seen.update(k)
+        return {"song": str(tmp_path / "song.wav"), "spec": _FakeSpec(),
+                "structured_lyrics": "x", "llm_status": [], "degraded": False, "seed": 42}
+    monkeypatch.setattr(queue.pipeline, "make_song", fake_make_song)
+    monkeypatch.setattr(queue.db, "recent_style_draws",
+                        lambda who, limit=5: [{"preset_id": "rock.band"}] if who == "ze" else [])
+    monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
+    monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 1.0)
+    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: key)
+    saved = {}
+    monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
+
+    queue.run_generation("j1", {"lyrics": "词", "feeling": "", "seed": None,
+                                "overrides": {}}, "ze")
+    assert seen["recent"] == [{"preset_id": "rock.band"}]
+    assert saved["seed"] == 42

@@ -21,6 +21,7 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
         length=payload.get("length", "auto"),
         seed=payload.get("seed"),
         overrides=payload.get("overrides") or {},
+        recent=db.recent_style_draws(created_by),
     )
     song_id = uuid.uuid4().hex
     wav = result["song"]
@@ -34,7 +35,8 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
         "lyrics": payload["lyrics"], "feeling": payload["feeling"],
         "spec_json": result["spec"].model_dump_json(),
         "structured_lyrics": result["structured_lyrics"],
-        "seed": payload.get("seed"), "mp3_url": url, "duration_sec": duration,
+        "seed": result.get("seed", payload.get("seed")),  # 流水线在 seed 为空时会生成一个
+        "mp3_url": url, "duration_sec": duration,
         "instrumental": 1 if payload.get("instrumental") else 0,
         "created_by": created_by,
         # 降级留痕:哪个阶段回退了要能在前端看见,不能跟正常出的歌长一样。
