@@ -122,6 +122,17 @@ def test_handlers_get_offload_from_config(fake_acestep, monkeypatch):
     assert fake_acestep.log["lm"]["offload_to_cpu"] is True
 
 
+def test_handlers_pass_vae_checkpoint_from_config(fake_acestep, monkeypatch):
+    """VAE 变体由 config.acestep_vae 决定并显式传给 DiT,便于 A/B(如 scragvae)。"""
+    import config
+
+    monkeypatch.setattr(config, "acestep_vae", lambda: "scragvae")
+    fake_acestep()
+    song_gen._get_handlers()
+
+    assert fake_acestep.log["dit"]["vae_checkpoint"] == "scragvae"
+
+
 # ── caption / keyscale / timesignature / use_cot_caption / shift 透传 ──
 
 def _hiphop_spec(**over):

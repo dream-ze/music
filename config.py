@@ -97,6 +97,15 @@ def acestep_offload(device: str) -> bool:
     return device in {"cuda", "mps"}
 
 
+def acestep_vae() -> str | None:
+    """VAE 变体(如 scragvae),读 ACESTEP_VAE_CHECKPOINT;未设置返回 None 交给上游默认 official。
+
+    社区 VAE 与官方同架构,可直接替换;首次使用自动下载到 checkpoints/<变体名>/。
+    MPS 上 MLX VAE 由已加载的 PyTorch VAE 转换而来,所以同样生效。
+    """
+    return os.environ.get("ACESTEP_VAE_CHECKPOINT", "").strip() or None
+
+
 def get_device() -> str:
     try:
         import torch

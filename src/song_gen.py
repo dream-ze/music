@@ -172,6 +172,7 @@ def _get_handlers():
         config_path=config.ACESTEP_CONFIG,
         device="auto",
         offload_to_cpu=offload,
+        vae_checkpoint=config.acestep_vae(),
     )
     if not ok:
         raise RuntimeError(f"ACE-Step DiT 初始化失败: {msg}")

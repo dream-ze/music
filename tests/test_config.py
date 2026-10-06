@@ -82,3 +82,14 @@ def test_acestep_backend_can_be_overridden(monkeypatch):
     """MLX 会跳过 CPU offload;内存不够时要能换成 pt 拿回 offload 能力。"""
     monkeypatch.setenv("ACESTEP_LM_BACKEND", "pt")
     assert config.acestep_backend("mps") == "pt"
+
+
+def test_acestep_vae_defaults_to_none(monkeypatch):
+    """未设置时交给上游决定(official),不在这里写死。"""
+    monkeypatch.delenv("ACESTEP_VAE_CHECKPOINT", raising=False)
+    assert config.acestep_vae() is None
+
+
+def test_acestep_vae_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("ACESTEP_VAE_CHECKPOINT", " scragvae ")
+    assert config.acestep_vae() == "scragvae"
