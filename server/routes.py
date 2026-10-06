@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from server import db, models, inspirations, storage
 from server.auth import require_passcode
+from src.presets import PRESETS, UI_GENRES
+from src.vocal_timbres import TIMBRES
 
 router = APIRouter(prefix="/api")
 
@@ -141,3 +143,17 @@ def delete_category(category_id: str, who: str = Depends(require_passcode)):
 @router.get("/inspirations")
 def get_inspirations():
     return {"inspirations": inspirations.PRESETS}
+
+
+_CREATIVITY_LABELS = [("pure", "纯正"), ("normal", "常规"), ("fusion", "融合")]
+
+
+@router.get("/styles")
+def get_styles():
+    """曲风 / 音色 / 创意度的选项与中文名。前端据此渲染,避免两端数据不同步。"""
+    return {
+        "genres": [{"id": pid, "label": PRESETS[pid].label, "family": PRESETS[pid].family}
+                   for pid in UI_GENRES],
+        "timbres": [{"id": t.id, "label": t.label} for t in TIMBRES.values()],
+        "creativity": [{"id": i, "label": l} for i, l in _CREATIVITY_LABELS],
+    }

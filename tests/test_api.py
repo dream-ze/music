@@ -339,3 +339,37 @@ def test_download_song_unknown_404(monkeypatch, tmp_path):
     monkeypatch.setattr(appmod.config, "APP_PASSCODE", "")
     r = client.get("/api/songs/nope/download")
     assert r.status_code == 404
+
+
+def test_generate_accepts_timbre_and_creativity(monkeypatch, tmp_path):
+    captured = _with_fake_queue(monkeypatch, tmp_path, "t1.db")
+    r = client.post("/api/generate", json=_body(overrides={
+        "preset": "pop.city_pop", "vocal_timbre": "breathy", "creativity": "fusion"}))
+    assert r.status_code == 200
+    o = captured["overrides"]
+    assert (o["preset"], o["vocal_timbre"], o["creativity"]) == \
+        ("pop.city_pop", "breathy", "fusion")
+
+
+def test_generate_defaults_creativity_to_normal(monkeypatch, tmp_path):
+    captured = _with_fake_queue(monkeypatch, tmp_path, "t2.db")
+    client.post("/api/generate", json=_body())
+    assert captured["overrides"]["creativity"] == "normal"
+    assert captured["overrides"]["vocal_timbre"] == ""
+
+
+def test_generate_rejects_unknown_timbre_or_creativity(monkeypatch, tmp_path):
+    _with_fake_queue(monkeypatch, tmp_path, "t3.db")
+    assert client.post("/api/generate",
+                       json=_body(overrides={"vocal_timbre": "robot"})).status_code == 422
+    assert client.post("/api/generate",
+                       json=_body(overrides={"creativity": "wild"})).status_code == 422
+
+
+def test_styles_endpoint():
+    body = client.get("/api/styles").json()
+    ids = [g["id"] for g in body["genres"]]
+    assert len(ids) == 14 and ids[0] == "pop.ballad" and "generic" not in ids
+    assert {"id", "label", "family"} <= set(body["genres"][0])
+    assert [t["id"] for t in body["timbres"]][:2] == ["clear", "breathy"]
+    assert [c["id"] for c in body["creativity"]] == ["pure", "normal", "fusion"]

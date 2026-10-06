@@ -1,7 +1,9 @@
 from pydantic import BaseModel, Field, field_validator
 
 from src.presets import get_preset
+from src.style_sampler import CREATIVITY_LEVELS
 from src.textcheck import has_cjk
+from src.vocal_timbres import get_timbre
 
 
 class Overrides(BaseModel):
@@ -11,6 +13,24 @@ class Overrides(BaseModel):
     language: str = ""
     # 风格预设 id;空 → generic。只由 UI 选择,planner 不自动推断。
     preset: str = ""
+    # 人声音色 id;空 → 由采样器按曲风挑
+    vocal_timbre: str = ""
+    # 创意度:pure 纯正 / normal 常规 / fusion 融合
+    creativity: str = "normal"
+
+    @field_validator("vocal_timbre")
+    @classmethod
+    def _known_timbre(cls, v: str) -> str:
+        get_timbre(v)  # 未知 id 抛 ValueError → 422
+        return v
+
+    @field_validator("creativity")
+    @classmethod
+    def _known_creativity(cls, v: str) -> str:
+        if v not in CREATIVITY_LEVELS:
+            raise ValueError(f"creativity must be one of {CREATIVITY_LEVELS}")
+        return v
+
 
     @field_validator("genre", "mood")
     @classmethod
