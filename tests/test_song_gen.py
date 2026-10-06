@@ -378,3 +378,11 @@ def test_generate_song_instrumental(fake_acestep, monkeypatch, tmp_path):
     song_gen.generate_song("[Instrumental]", spec, length="auto", out_path=str(tmp_path / "o.wav"))
     assert captured["instrumental"] is True and captured["lyrics"] == "[Instrumental]"
     assert captured["duration"] == 120.0
+
+
+def test_generate_song_forwards_progress(fake_acestep, monkeypatch, tmp_path):
+    captured = _capture_generation(fake_acestep, monkeypatch, tmp_path)
+    cb = lambda *a, **k: None
+    song_gen.generate_song("[Verse]\n词", _hiphop_spec(), out_path=str(tmp_path / "o.wav"),
+                           progress=cb)
+    assert captured["progress"] is cb

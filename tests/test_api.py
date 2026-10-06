@@ -373,3 +373,16 @@ def test_styles_endpoint():
     assert {"id", "label", "family"} <= set(body["genres"][0])
     assert [t["id"] for t in body["timbres"]][:2] == ["clear", "breathy"]
     assert [c["id"] for c in body["creativity"]] == ["pure", "normal", "fusion"]
+
+
+def test_active_jobs_include_stage_progress_and_eta(monkeypatch, tmp_path):
+    from server import db
+    _with_fake_queue(monkeypatch, tmp_path, "eta.db")
+    db.create_job("r1", status="running", position=0, created_by="ze")
+    db.update_job("r1", stage="音频合成", progress=0.5, started_at=db._now())
+    db.create_job("q1", status="queued", position=1, created_by="ze")
+    jobs = {j["job_id"]: j for j in client.get("/api/jobs/active").json()["jobs"]}
+    assert jobs["r1"]["stage"] == "音频合成" and jobs["r1"]["progress"] == 0.5
+    assert jobs["r1"]["eta_seconds"] > 0 and jobs["q1"]["eta_seconds"] > jobs["r1"]["eta_seconds"]
+    one = client.get("/api/jobs/q1").json()
+    assert one["eta_seconds"] == jobs["q1"]["eta_seconds"] and "stage" in one

@@ -5,6 +5,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from server import db, models, inspirations, storage
+from server.progress import typical_seconds, with_eta
 from server.auth import require_passcode
 from src.presets import PRESETS, UI_GENRES
 from src.vocal_timbres import TIMBRES
@@ -33,7 +34,11 @@ async def generate(req: models.GenerateRequest, request: Request,
 @router.get("/jobs/active")
 def active_jobs(who: str = Depends(require_passcode)):
     # 必须排在 /jobs/{job_id} 前面,否则 "active" 会被当成 job_id
-    return {"jobs": db.list_active_jobs()}
+    return {"jobs": _active_with_eta()}
+
+
+def _active_with_eta() -> list[dict]:
+    return with_eta(db.list_active_jobs(), typical=typical_seconds(db.recent_job_seconds()))
 
 
 @router.get("/jobs/{job_id}")
@@ -42,8 +47,10 @@ def job_status(job_id: str, who: str = Depends(require_passcode)):
     if not job:
         raise HTTPException(404, "任务不存在")
     song = db.get_song(job["song_id"]) if job.get("song_id") else None
+    eta = next((j["eta_seconds"] for j in _active_with_eta() if j["job_id"] == job_id), None)
     return {"status": job["status"], "position": job.get("position"),
-            "song": song, "error": job.get("error")}
+            "song": song, "error": job.get("error"),
+            "stage": job.get("stage"), "progress": job.get("progress"), "eta_seconds": eta}
 
 
 @router.get("/songs")

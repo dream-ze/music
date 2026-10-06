@@ -19,4 +19,17 @@ describe("PendingCard", () => {
     render(<PendingCard job={{ ...base, status: "queued" }} />)
     expect(screen.getByText("排队中…")).toBeInTheDocument()
   })
+
+  it("生成中显示真实阶段、进度条和剩余时间", () => {
+    render(<PendingCard job={{ ...base, status: "running", stage: "音频合成", progress: 0.62,
+                               eta_seconds: 150 }} />)
+    expect(screen.getByText("音频合成… 62%")).toBeInTheDocument()
+    expect(screen.getByText("约 3 分钟")).toBeInTheDocument()
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("62")
+  })
+
+  it("排队中显示预计等待", () => {
+    render(<PendingCard job={{ ...base, status: "queued", eta_seconds: 600 }} />)
+    expect(screen.getByText("约 10 分钟")).toBeInTheDocument()
+  })
 })

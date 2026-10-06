@@ -1,3 +1,4 @@
+import logging
 import os
 import secrets
 
@@ -6,17 +7,31 @@ from src import planner, lyrics, song_gen
 from src.style_sampler import Locks, parse_recent, resolve_genre, sample_style
 
 
+# 整体进度中出歌(ACE-Step)占的区间;之后的 0.95–1 留给转码上传
+_GEN_START, _GEN_END = 0.08, 0.95
+
+
 def make_song(raw_lyrics: str, style_desc: str, *,
               length: str = "full", seed: int | None = None,
               work_dir: str | None = None,
               overrides: dict | None = None,
               llm_options: dict | None = None,
               recent: list[dict] | None = None,
-              instrumental: bool = False) -> dict:
+              instrumental: bool = False,
+              on_progress=None) -> dict:
     """识别曲风 → 采样要素 → 规划 caption → 整理歌词 → 出歌。
 
     recent:同一用户最近几首的 style_draw(新 → 旧),用于避开刚用过的曲风/乐器/音色。
     """
+    def report(stage: str, frac: float) -> None:
+        # 进度只是展示用:回调出错(如数据库忙)绝不能打断出歌
+        if on_progress is None:
+            return
+        try:
+            on_progress(stage, frac)
+        except Exception:  # noqa: BLE001
+            logging.warning("progress callback failed", exc_info=True)
+
     out_dir = work_dir or config.OUTPUTS_DIR
     os.makedirs(out_dir, exist_ok=True)
     overrides = overrides or {}
@@ -30,6 +45,7 @@ def make_song(raw_lyrics: str, style_desc: str, *,
     recent_draws = parse_recent(recent or [])
 
     llm_status: list[dict] = []
+    report("风格规划", 0.02)
     # 旧客户端可能仍发 genre tag:并入识别文本。用户选择一律在采样前作为锁定项进入,
     # 不再在 planner 之后覆盖 spec —— caption 写好后再改 genre 对 DiT 无效。
     feeling_text = " ".join([style_desc or "", *(overrides.get("genre") or [])]).strip()
@@ -59,12 +75,21 @@ def make_song(raw_lyrics: str, style_desc: str, *,
         spec = spec.model_copy(update={"instrumental": True})
         structured = "[Instrumental]"          # 不调断行:没有要唱的词
     else:
+        report("歌词整理", 0.06)
         structured = lyrics.structure_lyrics(
             raw_lyrics, spec, preset=preset, llm_options=llm_options, status_events=llm_status
         )
+    def ace_progress(value, desc=None, *args, **kwargs):
+        # ACE-Step:0–0.5 LM 规划旋律,0.5–0.8 扩散合成,0.8 以后解码
+        v = min(max(float(value or 0), 0.0), 1.0)
+        stage = "旋律规划" if v < 0.5 else "音频合成" if v < 0.8 else "解码音频"
+        report(stage, _GEN_START + (_GEN_END - _GEN_START) * v)
+
+    report("旋律规划", _GEN_START)
     song_path = os.path.join(out_dir, "song.wav")
     song_path = song_gen.generate_song(
-        structured, spec, length=length, seed=seed, out_path=song_path
+        structured, spec, length=length, seed=seed, out_path=song_path,
+        progress=ace_progress,
     )
     return {
         "spec": spec,

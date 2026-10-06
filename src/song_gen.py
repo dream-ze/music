@@ -211,7 +211,8 @@ def _fake_song(length: str, out_path: str) -> str:
 
 
 def generate_song(structured_lyrics: str, spec: SongSpec, *,
-                  length: str = "full", seed: int | None = None, out_path: str) -> str:
+                  length: str = "full", seed: int | None = None, out_path: str,
+                  progress=None) -> str:
     """惰性 import ACE-Step 1.5 并生成歌曲，返回实际产出的音频路径。
 
     对接 ACE-Step 1.5 官方 Python API（acestep.inference.generate_music）。
@@ -257,7 +258,8 @@ def generate_song(structured_lyrics: str, spec: SongSpec, *,
     )
 
     save_dir = os.path.dirname(out_path) or "."
-    result = generate_music(dit, llm, params, gen_config, save_dir=save_dir)
+    # progress(value 0–1, desc=...):ACE-Step 在 LM 规划 / 扩散 / 解码各阶段回调
+    result = generate_music(dit, llm, params, gen_config, save_dir=save_dir, progress=progress)
     if not result.success or not result.audios:
         raise RuntimeError(f"ACE-Step 生成失败: {result.error or '无音频输出'}")
     return result.audios[0]["path"]

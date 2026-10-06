@@ -33,7 +33,17 @@ export interface Category {
   song_count: number
 }
 
-export interface Job {
+/** 生成任务的实时进度(后端 jobs 表 + 估算) */
+export interface JobProgress {
+  /** 当前阶段:风格规划/歌词整理/旋律规划/音频合成/解码音频/上传保存 */
+  stage?: string | null
+  /** 0–1 */
+  progress?: number | null
+  /** 按最近出歌耗时估算的剩余秒数;排队中的任务含前面任务的时间 */
+  eta_seconds?: number | null
+}
+
+export interface Job extends JobProgress {
   status: "queued" | "running" | "done" | "error"
   position: number | null
   song: Song | null
@@ -41,7 +51,7 @@ export interface Job {
 }
 
 /** 排队中/生成中的任务,作品库用来显示"生成中"卡片 */
-export interface ActiveJob {
+export interface ActiveJob extends JobProgress {
   job_id: string
   status: "queued" | "running"
   title: string

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import GenerateForm from "@/components/GenerateForm"
-import { generate } from "@/lib/api"
+import { generate, getJob } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({
   generate: vi.fn().mockResolvedValue({ job_id: "j1" }),
@@ -49,5 +49,15 @@ describe("GenerateForm 歌名", () => {
     fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
     await waitFor(() => expect(generate).toHaveBeenCalled())
     expect(vi.mocked(generate).mock.calls[0][0].instrumental).toBe(true)
+  })
+
+  it("生成中按钮显示阶段、百分比和剩余时间", async () => {
+    vi.mocked(getJob)
+      .mockResolvedValueOnce({ status: "running", position: 0, song: null, error: null,
+                               stage: "旋律规划", progress: 0.3, eta_seconds: 200 })
+      .mockResolvedValue({ status: "done", position: 0, song: null, error: null })
+    render(<GenerateForm />)
+    fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
+    expect(await screen.findByText("旋律规划 30% · 约 4 分钟")).toBeTruthy()
   })
 })

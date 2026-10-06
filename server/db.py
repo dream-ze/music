@@ -31,7 +31,8 @@ def init_db(path: str | None = None) -> None:
             CREATE TABLE IF NOT EXISTS jobs (
               job_id TEXT PRIMARY KEY, status TEXT, position INTEGER,
               song_id TEXT, error TEXT, created_by TEXT, created_at TEXT,
-              title TEXT, feeling TEXT
+              title TEXT, feeling TEXT, stage TEXT, progress REAL,
+              started_at TEXT, finished_at TEXT
             );
             CREATE TABLE IF NOT EXISTS categories (
               id TEXT PRIMARY KEY, name TEXT, created_by TEXT, created_at TEXT
@@ -55,6 +56,11 @@ def _migrate(c: sqlite3.Connection) -> None:
     for col in ("title", "feeling"):
         if col not in jcols:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    # 真实进度:当前阶段、0–1 进度、起止时间(估算剩余时间用)
+    for col, typ in (("stage", "TEXT"), ("progress", "REAL"),
+                     ("started_at", "TEXT"), ("finished_at", "TEXT")):
+        if col not in jcols:
+            c.execute(f"ALTER TABLE jobs ADD COLUMN {col} {typ}")
     if "category_id" not in cols:
         # 老版本一首歌只能属于一个分类;这一列不再写入,只保留给下面的迁移读一次
         c.execute("ALTER TABLE songs ADD COLUMN category_id TEXT")
@@ -271,10 +277,30 @@ def list_active_jobs() -> list[dict]:
     """排队中/生成中的任务,按提交先后。作品库用它显示"生成中"卡片。"""
     with _conn() as c:
         rows = c.execute(
-            "SELECT job_id, status, title, feeling, created_by, created_at "
+            "SELECT job_id, status, title, feeling, created_by, created_at, "
+            "stage, progress, started_at "
             "FROM jobs WHERE status IN ('queued','running') ORDER BY created_at"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def recent_job_seconds(limit: int = 10) -> list[float]:
+    """最近完成任务的耗时(秒),估算剩余时间用。失败或缺时间戳的不算。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT started_at, finished_at FROM jobs WHERE status='done' "
+            "AND started_at IS NOT NULL AND finished_at IS NOT NULL "
+            "ORDER BY finished_at DESC LIMIT ?", (limit,),
+        ).fetchall()
+    out = []
+    for r in rows:
+        try:
+            a = _dt.datetime.fromisoformat(r["started_at"])
+            b = _dt.datetime.fromisoformat(r["finished_at"])
+        except ValueError:
+            continue
+        out.append((b - a).total_seconds())
+    return out
 
 
 def get_job(job_id: str) -> dict | None:

@@ -5,6 +5,7 @@ import { usePlayer } from "@/lib/player"
 import AdvancedSettings, { type AdvValue } from "./AdvancedSettings"
 import type { GenerateInput } from "@/lib/types"
 import { useStyles } from "@/lib/styles"
+import { formatEta } from "@/lib/format"
 
 type Status = "idle" | "queued" | "running" | "error"
 
@@ -40,12 +41,17 @@ export default function GenerateForm() {
         return
       }
       setStatus(job.status)
+      const eta = formatEta(job.eta_seconds)
       if (job.status === "queued") {
         const ahead = Math.max(0, (job.position ?? 1) - 1)
-        setMsg(ahead > 0 ? `排队中 · 前面还有 ${ahead} 首（每首约 2-4 分钟）` : "排队中 · 即将开始…")
+        const wait = eta ? ` · 预计 ${eta}后完成` : ""
+        setMsg(ahead > 0 ? `排队中 · 前面还有 ${ahead} 首${wait}` : `排队中 · 即将开始${wait}`)
+      } else if (job.stage) {
+        const pct = Math.round((job.progress ?? 0) * 100)
+        setMsg(`${job.stage} ${pct}%${eta ? ` · ${eta}` : ""}`)
       } else {
         const elapsed = Math.round((Date.now() - startedAt) / 1000)
-        setMsg(`生成中… ${elapsed}s · Mac 出歌约 2-4 分钟，请耐心`)
+        setMsg(`生成中… ${elapsed}s`)
       }
       await new Promise((r) => setTimeout(r, 2500))
     }

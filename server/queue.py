@@ -16,6 +16,15 @@ def song_title(payload: dict) -> str:
 
 def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
     """阻塞:成曲 → MP3 → R2 → 写库。返回 song dict。在线程池里跑。"""
+    last: dict = {}
+
+    def on_progress(stage: str, frac: float) -> None:
+        # ACE-Step 的扩散进度每 0.5s 回调一次;同阶段变化不到 1% 就不写库
+        if stage == last.get("stage") and frac - last.get("frac", 0) < 0.01:
+            return
+        last.update(stage=stage, frac=frac)
+        db.update_job(job_id, stage=stage, progress=round(frac, 3))
+
     result = pipeline.make_song(
         payload["lyrics"], payload["feeling"],
         length=payload.get("length", "auto"),
@@ -23,7 +32,9 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
         overrides=payload.get("overrides") or {},
         recent=db.recent_style_draws(created_by),
         instrumental=bool(payload.get("instrumental")),
+        on_progress=on_progress,
     )
+    on_progress("上传保存", 0.96)
     song_id = uuid.uuid4().hex
     wav = result["song"]
     mp3 = wav.rsplit(".", 1)[0] + ".mp3"
@@ -76,12 +87,14 @@ class JobQueue:
         while True:
             job_id, payload, created_by = await self._queue.get()
             try:
-                db.update_job(job_id, status="running", position=0)
+                db.update_job(job_id, status="running", position=0, started_at=db._now())
                 song = await loop.run_in_executor(
                     None, run_generation, job_id, payload, created_by
                 )
-                db.update_job(job_id, status="done", song_id=song["id"])
+                db.update_job(job_id, status="done", song_id=song["id"],
+                              progress=1.0, finished_at=db._now())
             except Exception as e:  # noqa: BLE001 — 失败要落库让前端可见
-                db.update_job(job_id, status="error", error=str(e)[:500])
+                db.update_job(job_id, status="error", error=str(e)[:500],
+                              finished_at=db._now())
             finally:
                 self._queue.task_done()

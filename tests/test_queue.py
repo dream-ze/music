@@ -175,3 +175,43 @@ def test_run_generation_passes_instrumental(monkeypatch, tmp_path):
     queue.run_generation("j1", {"lyrics": "", "feeling": "", "instrumental": True,
                                 "overrides": {}}, "ze")
     assert seen["instrumental"] is True
+
+
+def test_run_generation_records_throttled_progress(monkeypatch, tmp_path):
+    updates = []
+
+    def fake_make_song(*a, on_progress=None, **k):
+        for stage, frac in [("风格规划", 0.02), ("音频合成", 0.500), ("音频合成", 0.503),
+                            ("音频合成", 0.52), ("解码音频", 0.521)]:
+            on_progress(stage, frac)
+        return {"song": str(tmp_path / "song.wav"), "spec": _FakeSpec(),
+                "structured_lyrics": "x", "llm_status": [], "degraded": False}
+    monkeypatch.setattr(queue.pipeline, "make_song", fake_make_song)
+    monkeypatch.setattr(queue.db, "recent_style_draws", lambda who, limit=5: [])
+    monkeypatch.setattr(queue.db, "update_job", lambda jid, **f: updates.append(f))
+    monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
+    monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 1.0)
+    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: key)
+    monkeypatch.setattr(queue.db, "insert_song", lambda s: None)
+    queue.run_generation("j1", {"lyrics": "x", "feeling": "", "overrides": {}}, "ze")
+    # 同阶段进度变化 <1% 不写库;阶段切换一定写
+    assert [(u["stage"], u["progress"]) for u in updates] == [
+        ("风格规划", 0.02), ("音频合成", 0.5), ("音频合成", 0.52), ("解码音频", 0.521),
+        ("上传保存", 0.96)]
+
+
+def test_worker_records_start_and_finish_times(monkeypatch):
+    monkeypatch.setattr(queue.db, "create_job", lambda *a, **k: None)
+    updates = []
+    monkeypatch.setattr(queue.db, "update_job", lambda job_id, **f: updates.append(f))
+    monkeypatch.setattr(queue, "run_generation", lambda job_id, payload, created_by: {"id": "s1"})
+
+    async def go():
+        q = queue.JobQueue()
+        q.start()
+        await q.enqueue({"lyrics": "x"}, "ze")
+        await asyncio.sleep(0.05)
+        await q.stop()
+    asyncio.run(go())
+    assert updates[0]["status"] == "running" and updates[0]["started_at"]
+    assert updates[-1]["status"] == "done" and updates[-1]["finished_at"]

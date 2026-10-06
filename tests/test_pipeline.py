@@ -21,8 +21,11 @@ def capture(monkeypatch):
         status_events.append({"stage": "歌词整理", "ok": True})
         return "[Verse]\n" + raw
 
-    def fake_gen(structured, spec, *, length, seed, out_path):
+    def fake_gen(structured, spec, *, length, seed, out_path, progress=None):
         seen.update(gen_spec=spec, gen_seed=seed, length=length)
+        if progress:
+            for v in (0.1, 0.6, 0.9):
+                progress(v, desc="x")
         return out_path
 
     monkeypatch.setattr(pipeline.planner, "plan_song", fake_plan)
@@ -142,3 +145,20 @@ def test_instrumental_skips_lyrics_and_marks_spec(capture, tmp_path):
     assert capture["draw"].vocal_timbre == "instrumental" and capture["draw"].vocal_gender == ""
     assert capture["gen_spec"].instrumental is True
     assert [e["stage"] for e in result["llm_status"]] == ["曲风识别", "歌曲规划"]
+
+
+def test_progress_reports_stages_in_order(capture, tmp_path):
+    seen = []
+    pipeline.make_song("词", "摇滚", seed=1, work_dir=str(tmp_path),
+                       on_progress=lambda stage, frac: seen.append((stage, frac)))
+    stages = [s for s, _ in seen]
+    assert stages == ["风格规划", "歌词整理", "旋律规划", "旋律规划", "音频合成", "解码音频"]
+    fracs = [f for _, f in seen]
+    assert fracs == sorted(fracs) and 0 < fracs[0] and fracs[-1] < 0.96
+
+
+def test_progress_callback_errors_do_not_break_generation(capture, tmp_path):
+    def boom(stage, frac):
+        raise RuntimeError("db locked")
+    result = pipeline.make_song("词", "摇滚", seed=1, work_dir=str(tmp_path), on_progress=boom)
+    assert result["seed"] == 1

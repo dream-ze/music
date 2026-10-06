@@ -136,7 +136,8 @@ def test_list_active_jobs_only_queued_running_in_order(tmp_path):
     db.create_job("j4", status="error", position=0, created_by="ze", title="D")
     active = db.list_active_jobs()
     assert [j["job_id"] for j in active] == ["j1", "j2"]
-    assert set(active[0]) == {"job_id", "status", "title", "feeling", "created_by", "created_at"}
+    assert set(active[0]) == {"job_id", "status", "title", "feeling", "created_by", "created_at",
+                              "stage", "progress", "started_at"}
 
 
 # ── 自定义分类(多对多:一首歌能同时属于好几个分类,跟网易云歌单一样)────
@@ -268,3 +269,33 @@ def test_recent_style_draws_filters_user_and_skips_old_songs(tmp_path):
     got = db.recent_style_draws("ze", limit=5)
     assert [d["preset_id"] for d in got] == ["lofi.chill", "rock.band"]   # 新 → 旧
     assert db.recent_style_draws("ze", limit=1) == [{"preset_id": "lofi.chill"}]
+
+
+def test_jobs_progress_columns_and_recent_durations(tmp_path):
+    import datetime as dt
+    from server import db
+    db.init_db(str(tmp_path / "p.db"))
+    db.create_job("a", status="running", position=0, created_by="ze")
+    db.update_job("a", stage="音频合成", progress=0.42)
+    job = db.list_active_jobs()[0]
+    assert job["stage"] == "音频合成" and job["progress"] == 0.42 and "started_at" in job
+    t0 = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+    for jid, sec in (("d1", 200), ("d2", 300)):
+        db.create_job(jid, status="done", position=0, created_by="ze")
+        db.update_job(jid, started_at=t0.isoformat(),
+                      finished_at=(t0 + dt.timedelta(seconds=sec)).isoformat())
+    db.create_job("e", status="error", position=0, created_by="ze")   # 失败的不算
+    assert sorted(db.recent_job_seconds()) == [200.0, 300.0]
+
+
+def test_migration_adds_progress_columns_to_old_jobs_table(tmp_path):
+    import sqlite3
+    from server import db
+    path = str(tmp_path / "old.db")
+    c = sqlite3.connect(path)
+    c.execute("CREATE TABLE jobs (job_id TEXT PRIMARY KEY, status TEXT, position INTEGER, "
+              "song_id TEXT, error TEXT, created_by TEXT, created_at TEXT)")
+    c.commit(); c.close()
+    db.init_db(path)
+    cols = {r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(jobs)")}
+    assert {"stage", "progress", "started_at", "finished_at"} <= cols
