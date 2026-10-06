@@ -4,20 +4,23 @@ import { generate, getJob } from "@/lib/api"
 import { usePlayer } from "@/lib/player"
 import AdvancedSettings, { type AdvValue } from "./AdvancedSettings"
 import type { GenerateInput } from "@/lib/types"
+import { useStyles } from "@/lib/styles"
 
 type Status = "idle" | "queued" | "running" | "error"
 
 export default function GenerateForm() {
   const { play } = usePlayer()
+  const styles = useStyles()
   const [title, setTitle] = useState("")
   const [lyrics, setLyrics] = useState("")
   const [feeling, setFeeling] = useState("")
   const [adv, setAdv] = useState<AdvValue>({
-    genre: [],
     mood: [],
     vocal_gender: "",
     language: "",
     preset: "",
+    vocal_timbre: "",
+    creativity: "normal",
   })
   const [status, setStatus] = useState<Status>("idle")
   const [msg, setMsg] = useState("")
@@ -59,11 +62,12 @@ export default function GenerateForm() {
       seed: null,
       instrumental: false,
       overrides: {
-        genre: adv.genre,
+        preset: adv.preset,
         mood: adv.mood,
         vocal_gender: adv.vocal_gender,
         language: adv.language,
-        preset: adv.preset,
+        vocal_timbre: adv.vocal_timbre,
+        creativity: adv.creativity,
       },
     }
     try {
@@ -127,7 +131,7 @@ export default function GenerateForm() {
             marginBottom: 14,
           }}
         />
-        <AdvancedSettings value={adv} onChange={(patch) => setAdv((s) => ({ ...s, ...patch }))} />
+        <AdvancedSettings styles={styles} value={adv} onChange={(patch) => setAdv((s) => ({ ...s, ...patch }))} />
         <button
           className="glow-btn"
           onClick={onSubmit}

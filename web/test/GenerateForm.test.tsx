@@ -6,6 +6,15 @@ import { generate } from "@/lib/api"
 vi.mock("@/lib/api", () => ({
   generate: vi.fn().mockResolvedValue({ job_id: "j1" }),
   getJob: vi.fn().mockResolvedValue({ status: "done", song: null }),
+  getStyles: vi.fn().mockResolvedValue({
+    genres: [{ id: "jazz.lounge", label: "爵士", family: "chill" }],
+    timbres: [{ id: "breathy", label: "气声" }],
+    creativity: [
+      { id: "pure", label: "纯正" },
+      { id: "normal", label: "常规" },
+      { id: "fusion", label: "融合" },
+    ],
+  }),
 }))
 vi.mock("@/lib/player", () => ({ usePlayer: () => ({ play: vi.fn() }) }))
 
@@ -18,5 +27,17 @@ describe("GenerateForm 歌名", () => {
     fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
     await waitFor(() => expect(generate).toHaveBeenCalled())
     expect(vi.mocked(generate).mock.calls[0][0].title).toBe("我的歌")
+  })
+  it("曲风/音色/创意度随提交发送,不再发送 genre", async () => {
+    vi.mocked(generate).mockClear()
+    render(<GenerateForm />)
+    fireEvent.click(await screen.findByText("爵士"))
+    fireEvent.click(screen.getByText("气声"))
+    fireEvent.click(screen.getByText("融合"))
+    fireEvent.click(screen.getByText("✦ 生成我的歌曲"))
+    await waitFor(() => expect(generate).toHaveBeenCalled())
+    const o = vi.mocked(generate).mock.calls[0][0].overrides
+    expect(o).toMatchObject({ preset: "jazz.lounge", vocal_timbre: "breathy", creativity: "fusion" })
+    expect(o.genre).toBeUndefined()
   })
 })

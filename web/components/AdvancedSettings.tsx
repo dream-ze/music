@@ -1,15 +1,7 @@
 "use client"
+import type { Creativity, StyleOption, Styles } from "@/lib/types"
 
 // 显示中文、发送英文:中文 tag 混进 caption 会削弱 ACE-Step 的条件控制(后端对中文 tag 返回 422)。
-export const GENRES = [
-  { label: "流行", tag: "pop" },
-  { label: "民谣", tag: "folk" },
-  { label: "摇滚", tag: "rock" },
-  { label: "R&B", tag: "r&b" },
-  { label: "电子", tag: "electronic" },
-  { label: "古典", tag: "classical" },
-  { label: "Hip hop", tag: "hip hop" },
-]
 export const MOODS = [
   { label: "温柔", tag: "gentle" },
   { label: "悲伤", tag: "sad" },
@@ -17,28 +9,47 @@ export const MOODS = [
   { label: "浪漫", tag: "romantic" },
   { label: "欢乐", tag: "joyful" },
 ]
-export const PRESET_OPTIONS = [
-  { id: "", label: "自动" },
-  { id: "hiphop.boom_bap", label: "Boom Bap" },
-  { id: "hiphop.trap", label: "Trap" },
-]
-const HIPHOP_TAG = "hip hop"
-const HIPHOP_DEFAULT_PRESET = "hiphop.boom_bap"
+
+// 曲风分组名;后端新增 family 而这里没写时直接显示 family 原文
+const FAMILY_LABEL: Record<string, string> = {
+  pop: "流行",
+  folk: "民谣",
+  rock: "摇滚",
+  rnb: "R&B",
+  electronic: "电子",
+  chill: "爵士 / 放松",
+  cn: "中国风",
+  hiphop: "说唱",
+}
 
 export interface AdvValue {
-  genre: string[]
   mood: string[]
   vocal_gender: string
   language: string
+  /** 曲风 id;空 = 自动(按「感觉」识别,识别不出随机) */
   preset: string
+  /** 人声音色 id;空 = 按曲风自动挑 */
+  vocal_timbre: string
+  creativity: Creativity
+}
+
+function groupByFamily(genres: StyleOption[]): [string, StyleOption[]][] {
+  const groups = new Map<string, StyleOption[]>()
+  for (const g of genres) {
+    const fam = g.family ?? ""
+    groups.set(fam, [...(groups.get(fam) ?? []), g])
+  }
+  return [...groups.entries()]
 }
 
 export default function AdvancedSettings({
   value,
   onChange,
+  styles,
 }: {
   value: AdvValue
   onChange: (patch: Partial<AdvValue>) => void
+  styles: Styles | null
 }) {
   const chip = (on: boolean) =>
     ({
@@ -50,57 +61,87 @@ export default function AdvancedSettings({
       background: on ? "rgba(47,107,216,.16)" : "rgba(255,255,255,.55)",
       color: on ? "var(--brand)" : "var(--muted)",
     }) as const
+  const row = { display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 } as const
+  const label = (text: string) => (
+    <p className="text-muted" style={{ fontSize: 12 }}>
+      {text}
+    </p>
+  )
+  const loading = (
+    <span className="text-muted" style={{ fontSize: 12 }}>
+      加载中…
+    </span>
+  )
   const toggle = (arr: string[], v: string) =>
     arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]
-
-  function pickGenre(tag: string) {
-    const genre = toggle(value.genre, tag)
-    // 选 Hip hop 且还没选 preset → 默认 boom bap(用户仍可在下方改成 Trap)
-    if (tag === HIPHOP_TAG && genre.includes(tag) && !value.preset) {
-      onChange({ genre, preset: HIPHOP_DEFAULT_PRESET })
-    } else {
-      onChange({ genre })
-    }
-  }
+  const option = (o: StyleOption, on: boolean, onClick: () => void) => (
+    <span key={o.id} role="button" aria-pressed={on} style={chip(on)} onClick={onClick}>
+      {o.label}
+    </span>
+  )
 
   return (
     <div>
-      <p className="text-muted" style={{ fontSize: 12 }}>
-        风格预设
-      </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
-        {PRESET_OPTIONS.map((p) => (
+      {label("曲风")}
+      <div style={{ marginBottom: 12 }}>
+        <div style={row}>
           <span
-            key={p.id || "auto"}
             role="button"
-            aria-pressed={value.preset === p.id}
-            style={chip(value.preset === p.id)}
-            onClick={() => onChange({ preset: p.id })}
+            aria-label="自动曲风"
+            aria-pressed={value.preset === ""}
+            style={chip(value.preset === "")}
+            onClick={() => onChange({ preset: "" })}
           >
-            {p.label}
+            自动
           </span>
-        ))}
+        </div>
+        {styles
+          ? groupByFamily(styles.genres).map(([fam, items]) => (
+              <div key={fam} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                <span className="text-muted" style={{ fontSize: 11, minWidth: 64 }}>
+                  {FAMILY_LABEL[fam] ?? fam}
+                </span>
+                <div style={{ ...row, marginBottom: 6 }}>
+                  {items.map((g) =>
+                    option(g, value.preset === g.id, () => onChange({ preset: g.id })),
+                  )}
+                </div>
+              </div>
+            ))
+          : loading}
       </div>
-      <p className="text-muted" style={{ fontSize: 12 }}>
-        风格
-      </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
-        {GENRES.map((g) => (
-          <span
-            key={g.tag}
-            role="button"
-            aria-pressed={value.genre.includes(g.tag)}
-            style={chip(value.genre.includes(g.tag))}
-            onClick={() => pickGenre(g.tag)}
-          >
-            {g.label}
-          </span>
-        ))}
+
+      {label("人声音色")}
+      <div style={row}>
+        <span
+          role="button"
+          aria-label="自动音色"
+          aria-pressed={value.vocal_timbre === ""}
+          style={chip(value.vocal_timbre === "")}
+          onClick={() => onChange({ vocal_timbre: "" })}
+        >
+          自动
+        </span>
+        {styles
+          ? styles.timbres.map((t) =>
+              option(t, value.vocal_timbre === t.id, () => onChange({ vocal_timbre: t.id })),
+            )
+          : loading}
       </div>
-      <p className="text-muted" style={{ fontSize: 12 }}>
-        情绪
-      </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+
+      {label("创意度")}
+      <div style={row}>
+        {styles
+          ? styles.creativity.map((c) =>
+              option(c, value.creativity === c.id, () =>
+                onChange({ creativity: c.id as Creativity }),
+              ),
+            )
+          : loading}
+      </div>
+
+      {label("情绪")}
+      <div style={row}>
         {MOODS.map((m) => (
           <span
             key={m.tag}
