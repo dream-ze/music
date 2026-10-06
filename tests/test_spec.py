@@ -82,3 +82,13 @@ def test_timesignature_enum():
     assert parse_spec(dict(SAFE_DEFAULT_SPEC, timesignature=4)).timesignature == 4
     with pytest.raises(ValueError):
         parse_spec(dict(SAFE_DEFAULT_SPEC, timesignature=5))
+
+
+def test_vocal_timbre_and_style_draw_default_for_old_spec_json():
+    old = SongSpec.model_validate_json('{"language": "zh", "vocal": {"gender": "male", "style": "x"}}')
+    assert old.vocal.timbre == "" and old.style_draw is None
+
+
+def test_style_draw_round_trips():
+    s = SongSpec(style_draw={"preset_id": "rock.band", "bpm": 120})
+    assert SongSpec.model_validate_json(s.model_dump_json()).style_draw["bpm"] == 120

@@ -10,6 +10,7 @@ _VALID_TIMESIGNATURES = {2, 3, 4, 6}
 class VocalSpec(BaseModel):
     gender: str = "female"
     style: str = "soft"
+    timbre: str = ""      # 音色 id(src/vocal_timbres.py);老数据为空
 
 
 class SongSpec(BaseModel):
@@ -28,6 +29,8 @@ class SongSpec(BaseModel):
     keyscale: str = ""           # 如 "F minor";空交给 LM
     timesignature: int | None = None
     preset_id: str = "generic"
+    # 本次风格采样结果(StyleDraw.model_dump());用于复现、展示与防重复。老数据为 None
+    style_draw: dict | None = None
 
     @field_validator("caption", "genre", "mood", "instrument")
     @classmethod
