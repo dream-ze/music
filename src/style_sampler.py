@@ -4,12 +4,14 @@
 LLM 自己挑词会收敛到最常见的搭配(同一 preset 的 caption 几乎逐字相同);
 这里用 seed 驱动的局部随机数抽取,保证可复现、遵守互斥、避开最近用过的。
 """
+import logging
 import random
 from collections.abc import Sequence
 
 from pydantic import BaseModel, Field, ValidationError
 
-from src.presets import POOL_ORDER, Preset, get_preset
+from src import llm
+from src.presets import POOL_ORDER, PRESETS, UI_GENRES, Preset, get_preset
 
 CREATIVITY_LEVELS = ("pure", "normal", "fusion")
 MAX_INSTRUMENTS = 5
@@ -136,3 +138,71 @@ def sample_style(preset: Preset, *, seed: int, locks: Locks | None = None,
         vocal_gender=locks.vocal_gender or preset.vocal_gender_default,
         bpm=bpm, fusion_id=fusion_id, seed=seed,
     )
+
+
+_DETECT_SYSTEM = "你是曲风分类器。只输出一个曲风 id,不要任何解释。"
+_RECENT_AVOID = 3
+
+
+def detect_by_keywords(text: str) -> str | None:
+    """按命中关键词的字符长度之和打分:"city pop" 同时命中 pop 时,长词胜出。"""
+    t = (text or "").lower()
+    best, best_score = None, 0
+    for pid in UI_GENRES:
+        score = sum(len(k) for k in PRESETS[pid].keywords if k.lower() in t)
+        if score > best_score:
+            best, best_score = pid, score
+    return best
+
+
+def _detect_by_llm(text: str, llm_options: dict | None) -> str | None:
+    menu = "\n".join(f"{pid}: {PRESETS[pid].label}" for pid in UI_GENRES)
+    prompt = f"歌曲感觉描述:{text}\n可选曲风(id: 名称):\n{menu}\n只输出最合适的一个 id。"
+    out = llm.complete(prompt, system=_DETECT_SYSTEM, **(llm_options or {})) or ""
+    for pid in UI_GENRES:
+        if pid in out:
+            return pid
+    return None
+
+
+def _emit(events: list[dict] | None, ok: bool, source: str, reason: str | None = None):
+    if events is None:
+        return
+    ev: dict = {"stage": "曲风识别", "ok": ok, "source": source}
+    if not ok:
+        ev["reason"] = reason
+    events.append(ev)
+
+
+def resolve_genre(preset_id: str | None, feeling: str, *, seed: int,
+                  recent_ids: Sequence[str] = (), llm_options: dict | None = None,
+                  status_events: list[dict] | None = None) -> Preset:
+    """UI 选择 > 感觉关键词 > LLM 识别 > 随机(避开最近 3 首)。未知 UI id 抛 ValueError。"""
+    if preset_id:
+        preset = get_preset(preset_id)
+        _emit(status_events, True, "ui")
+        return preset
+
+    pid = detect_by_keywords(feeling)
+    if pid:
+        _emit(status_events, True, "keyword")
+        return PRESETS[pid]
+
+    reason = None
+    if (feeling or "").strip():
+        try:
+            pid = _detect_by_llm(feeling, llm_options)
+        except Exception as e:  # noqa: BLE001 — 事件里不带异常原文(可能含 key)
+            logging.warning("genre detection LLM failed, picking random: %s", type(e).__name__)
+            reason = "llm_error"
+        else:
+            if pid:
+                _emit(status_events, True, "llm")
+                return PRESETS[pid]
+            reason = "unknown_genre"
+
+    avoid = set(list(recent_ids)[:_RECENT_AVOID])
+    pool = [p for p in UI_GENRES if p not in avoid] or list(UI_GENRES)
+    pid = random.Random(seed).choice(pool)
+    _emit(status_events, reason is None, "random", reason)
+    return PRESETS[pid]

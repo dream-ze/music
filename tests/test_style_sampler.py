@@ -95,3 +95,92 @@ def test_recent_timbres_are_down_weighted():
 def test_parse_recent_skips_invalid_items():
     good = _draw().model_dump()
     assert parse_recent([{"bad": 1}, good, None, "x"]) == [_draw()]
+
+
+from src import style_sampler
+from src.style_sampler import detect_by_keywords, resolve_genre
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("想要 City Pop 的感觉", "pop.city_pop"),       # 不能被 "pop" 抢走
+    ("pop punk 青春", "rock.pop_punk"),
+    ("民谣吉他，女声", "folk.acoustic"),
+    ("女声 R&B 深夜", "rnb.soul"),
+    ("夏天的海边", None),
+    ("", None),
+])
+def test_detect_by_keywords(text, expected):
+    assert detect_by_keywords(text) == expected
+
+
+def test_resolve_ui_choice_wins_and_skips_llm(monkeypatch):
+    monkeypatch.setattr(style_sampler.llm, "complete",
+                        lambda *a, **k: pytest.fail("不该调用 LLM"))
+    events = []
+    p = resolve_genre("jazz.lounge", "摇滚", seed=1, status_events=events)
+    assert p.id == "jazz.lounge"
+    assert events == [{"stage": "曲风识别", "ok": True, "source": "ui"}]
+
+
+def test_resolve_unknown_ui_id_raises():
+    with pytest.raises(ValueError):
+        resolve_genre("nope", "", seed=1)
+
+
+def test_resolve_keyword_before_llm(monkeypatch):
+    monkeypatch.setattr(style_sampler.llm, "complete",
+                        lambda *a, **k: pytest.fail("不该调用 LLM"))
+    events = []
+    assert resolve_genre("", "来点 synthwave", seed=1, status_events=events).id == \
+        "electronic.synthwave"
+    assert events[0]["source"] == "keyword"
+
+
+def test_resolve_llm_when_keywords_miss(monkeypatch):
+    seen = {}
+
+    def fake(prompt, **k):
+        seen.update(prompt=prompt, **k)
+        return "我觉得是 jazz.lounge"
+    monkeypatch.setattr(style_sampler.llm, "complete", fake)
+    events = []
+    p = resolve_genre("", "夜里的小酒馆", seed=1, llm_options={"provider": "deepseek"},
+                      status_events=events)
+    assert p.id == "jazz.lounge" and seen["provider"] == "deepseek"
+    assert "rock.anime" in seen["prompt"] and "夜里的小酒馆" in seen["prompt"]
+    assert events == [{"stage": "曲风识别", "ok": True, "source": "llm"}]
+
+
+def test_resolve_llm_garbage_falls_back_to_random(monkeypatch):
+    monkeypatch.setattr(style_sampler.llm, "complete", lambda *a, **k: "不知道")
+    events = []
+    p = resolve_genre("", "夜里的小酒馆", seed=1, status_events=events)
+    assert p.id in UI_GENRES
+    assert events == [{"stage": "曲风识别", "ok": False, "source": "random",
+                       "reason": "unknown_genre"}]
+
+
+def test_resolve_llm_error_does_not_leak(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("bad key sk-SECRET")
+    monkeypatch.setattr(style_sampler.llm, "complete", boom)
+    events = []
+    resolve_genre("", "夜里的小酒馆", seed=1, status_events=events)
+    assert events[0]["reason"] == "llm_error"
+    assert "SECRET" not in str(events)
+
+
+def test_resolve_empty_feeling_is_random_without_llm(monkeypatch):
+    monkeypatch.setattr(style_sampler.llm, "complete",
+                        lambda *a, **k: pytest.fail("不该调用 LLM"))
+    events = []
+    a = resolve_genre("", "  ", seed=5, status_events=events)
+    assert a.id == resolve_genre("", "", seed=5).id          # 同 seed 同结果
+    assert events == [{"stage": "曲风识别", "ok": True, "source": "random"}]
+
+
+def test_resolve_random_avoids_three_most_recent():
+    recent = ["pop.ballad", "rock.band", "lofi.chill", "jazz.lounge"]
+    picked = {resolve_genre("", "", seed=s, recent_ids=recent).id for s in range(200)}
+    assert not picked & {"pop.ballad", "rock.band", "lofi.chill"}
+    assert "jazz.lounge" in picked                           # 第 4 个不避
