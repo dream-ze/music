@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import config
 from server import db
+from server.frontend import mount_frontend
 from server.queue import JobQueue
 from server.routes import router
 
@@ -39,3 +40,5 @@ def health():
 
 
 app.include_router(router)
+# 前端网页兜底路由必须最后注册,让 /api/* 先匹配
+mount_frontend(app, config.WEB_DIST_DIR)

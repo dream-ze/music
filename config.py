@@ -3,6 +3,8 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+# 前端静态导出目录(scripts/build_web.sh 生成);存在时由后端同源提供网页
+WEB_DIST_DIR = os.environ.get("WEB_DIST_DIR", os.path.join(BASE_DIR, "web", "out"))
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-haiku-4-5-20251001")
 # 文本模型供应商。换供应商只需改环境变量 —— 此前 provider 写死在
