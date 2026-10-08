@@ -1,0 +1,9 @@
+# 后端服务依赖(装进 ACE-Step 的 Python 环境;torch 等由 ACE-Step 提供,这里不重复)
+# Windows:  & <ACE-Step 的 python.exe> -m pip install -r requirements-server.txt
+pydantic>=2
+requests
+keyring>=25.6,<26
+fastapi
+uvicorn[standard]
+boto3
+anthropic

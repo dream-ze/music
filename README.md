@@ -4,7 +4,10 @@
 
 ## 启动
 
-Windows 用户双击 `start_music.bat`，然后打开 <http://127.0.0.1:7860>。
+- **Mac**：`./run_api.sh`（已配成 LaunchAgent 自启），前端改动后执行 `scripts/build_web.sh`。
+- **Windows**：双击 `start_music.bat`（即 `run_api.ps1`），前端改动后执行 `scripts\build_web.ps1`。完整迁移步骤见 [docs/windows-setup.md](docs/windows-setup.md)。
+
+后端在 8000 端口同时提供网页和 API：本机打开 <http://localhost:8000>，公网经 Tailscale Funnel 访问。
 
 ## 文本模型
 
