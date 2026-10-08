@@ -93,3 +93,36 @@ def test_acestep_vae_defaults_to_none(monkeypatch):
 def test_acestep_vae_can_be_overridden(monkeypatch):
     monkeypatch.setenv("ACESTEP_VAE_CHECKPOINT", " scragvae ")
     assert config.acestep_vae() == "scragvae"
+
+
+def test_mlx_backend_override_ignored_off_apple(monkeypatch):
+    """从 Mac 拷过来的 .env 带着 ACESTEP_LM_BACKEND=mlx,到 Windows/CUDA 上必须退回 pt。"""
+    monkeypatch.setenv("ACESTEP_LM_BACKEND", "mlx")
+    assert config.acestep_backend("mps") == "mlx"
+    assert config.acestep_backend("cuda") == "pt"
+    monkeypatch.setenv("ACESTEP_LM_BACKEND", "vllm")
+    assert config.acestep_backend("cuda") == "vllm"
+
+
+def test_dit_options_follow_vram_tiers(monkeypatch):
+    for k in ("ACESTEP_QUANTIZATION", "ACESTEP_OFFLOAD_DIT"):
+        monkeypatch.delenv(k, raising=False)
+    # 8GB(如 RTX 4060 Laptop):INT8 + DiT 也 offload,对齐上游 tier3/4
+    assert config.acestep_dit_options("cuda", vram_gb=8) == {
+        "quantization": "int8_weight_only", "offload_dit_to_cpu": True}
+    # 12–16GB:仍量化,DiT 可常驻
+    assert config.acestep_dit_options("cuda", vram_gb=12) == {
+        "quantization": "int8_weight_only", "offload_dit_to_cpu": False}
+    assert config.acestep_dit_options("cuda", vram_gb=24) == {
+        "quantization": None, "offload_dit_to_cpu": False}
+    # Apple / CPU 不量化(上游对 MPS 也是 no quantization)
+    assert config.acestep_dit_options("mps") == {"quantization": None, "offload_dit_to_cpu": False}
+
+
+def test_dit_options_env_overrides(monkeypatch):
+    monkeypatch.setenv("ACESTEP_QUANTIZATION", "none")
+    monkeypatch.setenv("ACESTEP_OFFLOAD_DIT", "0")
+    assert config.acestep_dit_options("cuda", vram_gb=8) == {
+        "quantization": None, "offload_dit_to_cpu": False}
+    monkeypatch.setenv("ACESTEP_QUANTIZATION", "fp8_weight_only")
+    assert config.acestep_dit_options("mps")["quantization"] == "fp8_weight_only"

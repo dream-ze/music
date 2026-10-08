@@ -428,3 +428,14 @@ def test_get_handlers_releases_decoder(fake_acestep, monkeypatch):
     fake_acestep()
     dit, _ = song_gen._get_handlers()
     assert seen == [dit]
+
+
+def test_handlers_pass_dit_options_from_config(fake_acestep, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "get_device", lambda: "cuda")
+    monkeypatch.setattr(config, "acestep_dit_options",
+                        lambda device: {"quantization": "int8_weight_only", "offload_dit_to_cpu": True})
+    fake_acestep()
+    song_gen._get_handlers()
+    assert fake_acestep.log["dit"]["quantization"] == "int8_weight_only"
+    assert fake_acestep.log["dit"]["offload_dit_to_cpu"] is True

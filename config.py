@@ -81,7 +81,8 @@ def acestep_backend(device: str) -> str:
     offload 能力。
     """
     override = os.environ.get("ACESTEP_LM_BACKEND", "").strip()
-    if override:
+    # MLX 只存在于 Apple Silicon:从 Mac 拷来的 .env 在 Windows/CUDA 上不能照搬
+    if override and not (override == "mlx" and device != "mps"):
         return override
     return "mlx" if device == "mps" else "pt"
 
@@ -106,6 +107,41 @@ def acestep_vae() -> str | None:
     MPS 上 MLX VAE 由已加载的 PyTorch VAE 转换而来,所以同样生效。
     """
     return os.environ.get("ACESTEP_VAE_CHECKPOINT", "").strip() or None
+
+
+def _cuda_vram_gb() -> float | None:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_properties(0).total_memory / 1024**3
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def acestep_dit_options(device: str, vram_gb: float | None = None) -> dict:
+    """DiT 的 INT8 量化与是否 offload,对齐上游 gpu_config 的显存档位。
+
+    直接调 initialize_service 时上游不会套用档位默认值(那只在 Gradio/API 入口里做),
+    不传的话 8GB 显卡会跑未量化的完整 DiT。
+    - CUDA < 12GB(如 RTX 4060 Laptop 8GB):int8_weight_only + DiT 也 offload
+    - CUDA 12–16GB:int8,DiT 常驻;≥16GB:不量化
+    - Apple / CPU:不量化(上游对 MPS 也关量化)
+    环境变量覆盖:ACESTEP_QUANTIZATION(none / int8_weight_only / fp8_weight_only / w8a8_dynamic),
+    ACESTEP_OFFLOAD_DIT(1/0)。
+    """
+    quant, offload_dit = None, False
+    if device == "cuda":
+        vram = vram_gb if vram_gb is not None else (_cuda_vram_gb() or 8)
+        quant = "int8_weight_only" if vram < 16 else None
+        offload_dit = vram < 12
+    q = os.environ.get("ACESTEP_QUANTIZATION", "").strip()
+    if q:
+        quant = None if q.lower() in {"none", "0", "off"} else q
+    o = os.environ.get("ACESTEP_OFFLOAD_DIT", "").strip()
+    if o:
+        offload_dit = o not in {"0", "false", "False", "no"}
+    return {"quantization": quant, "offload_dit_to_cpu": offload_dit}
 
 
 def get_device() -> str:
