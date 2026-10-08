@@ -19,3 +19,19 @@
 ## 结论
 
 线上改用 Z：`.env` 中 `ACESTEP_LM_BACKEND=mlx`、`ACESTEP_MLX_VAE_FP16=1`，offload 保持默认开启。回退：恢复 `~/zemusic-env.bak-speed`(仓库外,含密钥)（或把这两行改回 `pt` / 删除），再重启后端。
+
+## 释放 PyTorch 版 DiT decoder（2026-10-08，同上方法）
+
+MLX DiT 初始化后，PyTorch 主模型里的 `decoder`（约占 DiT 权重 2/3，MPS 上 float32 约 6GB）与 MLX 那份重复；出歌主路径只用 `prepare_condition`（encoder / tokenize / detokenize）。`song_gen.release_torch_decoder` 用占位模块替换它。
+
+| 运行 | decoder | 模型加载 | LM | DiT 阶段（扩散） | 解码 | 生成总计 | MLX 峰值 | MPS 驱动 |
+|---|---|---|---|---|---|---|---|---|
+| Z | 保留 | 135s | 56s | 129s（94s） | 70s | 254s | 10.6 GB | 17.9 GB |
+| W | 释放 | 159s | 57s | 169s（123s） | 101s | 327s | 10.6 GB | **12.4 GB** |
+| Z2（重跑 Z） | 保留 | 148s | 55s | 162s（112s） | 70s | 286s | 10.6 GB | 17.9 GB |
+
+- 释放后 PyTorch 侧少占 **5.4 GB**，确认生效。
+- 速度无可测差异：同配置 Z/Z2 的扩散就相差 18s；W 慢在 MLX 计算（扩散、VAE），与 PyTorch 侧无关，属于运行间波动。
+- 每次运行 swap 都上涨，主要来自 MLX 侧（峰值 10.6 GB）。机器为 **Apple M1（8 核 GPU）**，DiT 每步 12–15 秒更像算力上限，而非 swap 拖累。
+- 结论：保留释放（省内存、降低 OOM 风险）；`ACESTEP_KEEP_TORCH_DIT=1` 可恢复上游行为（含 MLX 失败时的 PyTorch 回退）。
+- 单次测量波动约 ±15%，后续速度对比需每个配置跑 2 次以上。
