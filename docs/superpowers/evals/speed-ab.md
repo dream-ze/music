@@ -18,4 +18,4 @@
 
 ## 结论
 
-线上改用 Z：`.env` 中 `ACESTEP_LM_BACKEND=mlx`、`ACESTEP_MLX_VAE_FP16=1`，offload 保持默认开启。回退：恢复 `.env.bak-speed`（或把这两行改回 `pt` / 删除），再重启后端。
+线上改用 Z：`.env` 中 `ACESTEP_LM_BACKEND=mlx`、`ACESTEP_MLX_VAE_FP16=1`，offload 保持默认开启。回退：恢复 `~/zemusic-env.bak-speed`(仓库外,含密钥)（或把这两行改回 `pt` / 删除），再重启后端。
