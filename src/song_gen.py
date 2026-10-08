@@ -1,4 +1,6 @@
+import gc
 import inspect
+import logging
 import os
 import re
 import sys
@@ -114,6 +116,43 @@ def patch_prefill_logits(llm_cls) -> bool:
     return True
 
 
+# ── MLX DiT 就绪后释放 PyTorch 版 decoder ──────────────────────────────
+#
+# MPS 上上游把 PyTorch 主模型加载成 float32,其中 decoder(DiT 本体)约占 2/3、约 6GB;
+# MLX DiT 初始化时把同一份权重又转换了一份。MLX 路径只用 PyTorch 模型的
+# prepare_condition(encoder / tokenize / detokenize),decoder 只在 MLX 扩散失败时的
+# 回退里用到。实测这两份重复的 DiT 让一首歌跑出约 17GB swap,DiT 每步约 12 秒。
+# ACESTEP_KEEP_TORCH_DIT=1 可保留(恢复上游行为,换回 MLX 失败时的 PyTorch 回退)。
+
+def release_torch_decoder(dit) -> bool:
+    """MLX DiT 可用时用占位模块替换 dit.model.decoder 并回收内存;返回是否释放。"""
+    if os.environ.get("ACESTEP_KEEP_TORCH_DIT", "").strip() in {"1", "true", "yes"}:
+        return False
+    if not (getattr(dit, "use_mlx_dit", False) and getattr(dit, "mlx_decoder", None) is not None):
+        return False
+    model = getattr(dit, "model", None)
+    if model is None or getattr(getattr(model, "decoder", None), "_ze_released", False):
+        return False
+
+    import torch
+
+    class _ReleasedDecoder(torch.nn.Module):
+        _ze_released = True
+
+        def forward(self, *args, **kwargs):
+            raise RuntimeError(
+                "PyTorch DiT decoder 已释放以节省内存(出歌走 MLX DiT)。"
+                "若 MLX 扩散失败需要 PyTorch 回退,设 ACESTEP_KEEP_TORCH_DIT=1 后重启。"
+            )
+
+    model.decoder = _ReleasedDecoder()   # nn.Module 子模块必须用 Module 替换
+    gc.collect()
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+    logging.info("released PyTorch DiT decoder (MLX DiT active)")
+    return True
+
+
 # 模型很重，进程内只初始化一次，之后复用。
 _dit_handler = None
 _llm_handler = None
@@ -179,6 +218,7 @@ def _get_handlers():
     )
     if not ok:
         raise RuntimeError(f"ACE-Step DiT 初始化失败: {msg}")
+    release_torch_decoder(dit)
     llm = LLMHandler()
     msg, ok = llm.initialize(
         checkpoint_dir=config.ACESTEP_CHECKPOINT_DIR,

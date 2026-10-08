@@ -386,3 +386,45 @@ def test_generate_song_forwards_progress(fake_acestep, monkeypatch, tmp_path):
     song_gen.generate_song("[Verse]\n词", _hiphop_spec(), out_path=str(tmp_path / "o.wav"),
                            progress=cb)
     assert captured["progress"] is cb
+
+
+# ── MLX DiT 就绪后释放 PyTorch 版 decoder(MPS 上 float32 约 6GB,与 MLX 那份重复)──
+
+def _torch_dit(use_mlx=True):
+    import torch
+    model = torch.nn.Module()
+    model.decoder = torch.nn.Linear(4, 4)
+    model.encoder = torch.nn.Linear(4, 4)
+    return types.SimpleNamespace(model=model, use_mlx_dit=use_mlx,
+                                 mlx_decoder=object() if use_mlx else None)
+
+
+def test_release_torch_decoder_when_mlx_active(monkeypatch):
+    monkeypatch.delenv("ACESTEP_KEEP_TORCH_DIT", raising=False)
+    dit = _torch_dit()
+    assert song_gen.release_torch_decoder(dit) is True
+    assert sum(p.numel() for p in dit.model.decoder.parameters()) == 0
+    assert sum(p.numel() for p in dit.model.encoder.parameters()) == 20      # 编码器保留
+    with pytest.raises(RuntimeError, match="ACESTEP_KEEP_TORCH_DIT"):
+        dit.model.decoder(None)
+    assert song_gen.release_torch_decoder(dit) is False                      # 幂等
+    dit.model.to("cpu")                                                      # offload 搬运仍可用
+
+
+def test_release_skipped_without_mlx_or_when_kept(monkeypatch):
+    monkeypatch.delenv("ACESTEP_KEEP_TORCH_DIT", raising=False)
+    dit = _torch_dit(use_mlx=False)
+    assert song_gen.release_torch_decoder(dit) is False
+    assert sum(p.numel() for p in dit.model.decoder.parameters()) == 20
+    monkeypatch.setenv("ACESTEP_KEEP_TORCH_DIT", "1")
+    assert song_gen.release_torch_decoder(_torch_dit()) is False
+    assert song_gen.release_torch_decoder(types.SimpleNamespace()) is False  # 没有 model 属性
+
+
+def test_get_handlers_releases_decoder(fake_acestep, monkeypatch):
+    monkeypatch.delenv("ACESTEP_KEEP_TORCH_DIT", raising=False)
+    seen = []
+    monkeypatch.setattr(song_gen, "release_torch_decoder", lambda dit: seen.append(dit) or True)
+    fake_acestep()
+    dit, _ = song_gen._get_handlers()
+    assert seen == [dit]
