@@ -1,6 +1,8 @@
 import asyncio
 import json
 import uuid
+import os
+import config
 
 from src import pipeline
 from server import db, storage
@@ -27,6 +29,7 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
 
     result = pipeline.make_song(
         payload["lyrics"], payload["feeling"],
+        work_dir=os.path.join(config.OUTPUTS_DIR, "jobs", job_id),
         length=payload.get("length", "auto"),
         seed=payload.get("seed"),
         overrides=payload.get("overrides") or {},
@@ -34,13 +37,13 @@ def run_generation(job_id: str, payload: dict, created_by: str) -> dict:
         instrumental=bool(payload.get("instrumental")),
         on_progress=on_progress,
     )
-    on_progress("上传保存", 0.96)
+    on_progress("保存作品", 0.96)
     song_id = uuid.uuid4().hex
     wav = result["song"]
     mp3 = wav.rsplit(".", 1)[0] + ".mp3"
     storage.wav_to_mp3(wav, mp3)
     duration = storage.probe_duration(mp3)
-    url = storage.upload_to_r2(mp3, f"{song_id}.mp3")
+    url = storage.save_audio(mp3, f"{song_id}.mp3")
 
     song = {
         "id": song_id, "title": song_title(payload),

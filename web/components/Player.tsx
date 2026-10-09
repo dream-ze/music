@@ -4,6 +4,7 @@ import { useState } from "react"
 import { usePlayer } from "@/lib/player"
 import { formatDuration } from "@/lib/format"
 import { downloadSong } from "@/lib/download"
+import { mediaUrl } from "@/lib/api-base"
 
 export default function Player() {
   const { current } = usePlayer()
@@ -93,7 +94,7 @@ export default function Player() {
       >
         {downloading ? "下载中…" : downloadError ? "下载失败" : "⬇"}
       </button>
-      <audio controls autoPlay src={current.mp3_url} className="player-audio" />
+      <audio controls autoPlay src={mediaUrl(current.mp3_url)} className="player-audio" />
     </div>
   )
 }

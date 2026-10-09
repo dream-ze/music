@@ -2,7 +2,24 @@
 
 目标机器：Windows 11 + RTX 4060 Laptop 8GB + 32GB 内存。迁移后所有环节都不额外花钱：出歌用本机显卡，公网访问用 Tailscale Funnel（免费），音频存储继续用 Cloudflare R2（免费额度内），文本 LLM 继续用 DeepSeek（按量计费，每首几分钱）。
 
-> 本文档的脚本在 Mac 上编写，**尚未在 Windows 上实跑**。每一步后面都写了怎么确认成功；哪一步不对，把报错贴给 Claude。
+> 2026-10-09 已在目标 Windows 电脑验证静态网页构建、后端测试与真实短曲生成。公网迁移和自启动步骤尚未验证。
+
+## 先在当前电脑本地运行
+
+本机已有 ACE-Step Python 环境、Node 和 FFmpeg，无需重新安装。运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_web.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File run_api.ps1
+```
+
+随后打开 http://localhost:8000 。启动与构建脚本会刷新系统/用户 PATH；前端默认使用当前网页所在地址的 API，不再绑定旧 Funnel 域名。分离部署可在构建前显式设置 `NEXT_PUBLIC_API_BASE`。若 8000 已被旧服务占用，先退出旧服务，或用 `run_api.ps1 -Port 8001` 启动并访问对应端口。
+
+`AUDIO_STORAGE=auto` 是默认值：R2 完全未配置时保存到 `outputs/audio/`，完整配置时使用 R2。部分配置会明确报错，可通过 `AUDIO_STORAGE=local` 显式使用本地。每个任务的 WAV/工作文件放在 `outputs/jobs/<job_id>/`，旧的 R2 链接继续有效。本地音频使用随机文件名的公开媒体 URL（与原公开 R2 音频一致），支持拖动播放；下载和删除 API 仍校验口令。删除歌曲会清除发布的本地 MP3，任务原始文件保留。
+
+Windows 启动默认选用 0.6B LM；`.env` 或进程环境中的显式设置优先。当前 PyTorch 2.7.1+cu128 / torchao 0.16.0 虽提示跳过不兼容 C++ 扩展，但 `int8_weight_only` 的 CUDA 运算和完整短曲生成均已通过，因此此次没有升级或降级依赖。其他量化路径未验证。
+
+本机测试：固定中文歌词、caption、seed=42，0.6B/PT、Turbo 8 步、INT8、CPU/DiT offload，生成 45 秒音频并转换 MP3，首次加载在内用时约 51.2 秒。此测试直接调用音频生成器，不含外部文本 API、上传或听感评测。
 
 ## 0. 准备清单
 
@@ -68,7 +85,7 @@ cd D:\music\zemusic
 powershell -ExecutionPolicy Bypass -File scripts\build_web.ps1
 ```
 
-确认：最后输出 `built web\out (API base: https://192.tail3eff52.ts.net)`。
+确认：最后输出 `built web\out (API base: /)`，表示网页与 API 同源。
 
 ## 6. 先在本机跑通
 

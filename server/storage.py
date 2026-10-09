@@ -1,6 +1,50 @@
 import subprocess
+import re
+import shutil
+from pathlib import Path
 
 import config
+
+
+def storage_backend() -> str:
+    mode = config.AUDIO_STORAGE
+    if mode not in {"auto", "local", "r2"}:
+        raise ValueError("AUDIO_STORAGE must be auto/local/r2")
+    if mode == "local":
+        return mode
+    values = [config.R2_ACCOUNT_ID, config.R2_ACCESS_KEY, config.R2_SECRET_KEY,
+              config.R2_BUCKET, config.R2_PUBLIC_BASE]
+    if all(values):
+        return "r2"
+    if mode == "r2" or any(values):
+        raise ValueError("R2 配置不完整；请补全配置或设置 AUDIO_STORAGE=local")
+    return "local"
+
+
+def local_audio_path(key: str) -> Path:
+    if not re.fullmatch(r"[0-9a-f]{32}\.mp3", key):
+        raise ValueError("无效的音频文件名")
+    root = Path(config.LOCAL_AUDIO_DIR).resolve()
+    path = (root / key).resolve()
+    if path.parent != root:
+        raise ValueError("无效的音频路径")
+    return path
+
+
+def save_audio(local_path: str, key: str) -> str:
+    if storage_backend() == "r2":
+        return upload_to_r2(local_path, key)
+    target = local_audio_path(key)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(local_path, target)
+    return f"/api/media/{key}"
+
+
+def delete_audio(url: str) -> None:
+    if url.startswith("/api/media/"):
+        local_audio_path(url.removeprefix("/api/media/")).unlink(missing_ok=True)
+    else:
+        delete_from_r2(url.rsplit("/", 1)[-1])
 
 
 def wav_to_mp3(wav_path: str, mp3_path: str) -> str:

@@ -2,6 +2,8 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
+AUDIO_STORAGE = os.environ.get("AUDIO_STORAGE", "auto").strip().lower()
+LOCAL_AUDIO_DIR = os.environ.get("LOCAL_AUDIO_DIR", os.path.join(OUTPUTS_DIR, "audio"))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 # 前端静态导出目录(scripts/build_web.sh 生成);存在时由后端同源提供网页
 WEB_DIST_DIR = os.environ.get("WEB_DIST_DIR", os.path.join(BASE_DIR, "web", "out"))

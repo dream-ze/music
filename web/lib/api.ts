@@ -1,7 +1,7 @@
 import type { Song, Job, ActiveJob, GenerateInput, Inspiration, Category, Styles } from "./types"
 import { getPasscode } from "./passcode"
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+import { API_BASE as BASE } from "./api-base"
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

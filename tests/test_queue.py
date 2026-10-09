@@ -15,7 +15,7 @@ def test_run_generation_orchestrates(monkeypatch, tmp_path):
                           "llm_status": [], "degraded": False})
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 200.0)
-    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
+    monkeypatch.setattr(queue.storage, "save_audio", lambda p, key: f"https://r2/{key}")
     saved = {}
     monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
     monkeypatch.setattr(queue.db, "recent_style_draws", lambda who, limit=5: [])
@@ -72,7 +72,7 @@ def test_run_generation_persists_llm_status(monkeypatch, tmp_path):
                           "llm_status": events, "degraded": True})
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 200.0)
-    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
+    monkeypatch.setattr(queue.storage, "save_audio", lambda p, key: f"https://r2/{key}")
     saved = {}
     monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
 
@@ -92,7 +92,7 @@ def _stub_io(monkeypatch, tmp_path, saved):
                           "llm_status": [], "degraded": False})
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 200.0)
-    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: f"https://r2/{key}")
+    monkeypatch.setattr(queue.storage, "save_audio", lambda p, key: f"https://r2/{key}")
     monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
 
 
@@ -149,7 +149,7 @@ def test_run_generation_passes_recent_and_saves_result_seed(monkeypatch, tmp_pat
                         lambda who, limit=5: [{"preset_id": "rock.band"}] if who == "ze" else [])
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 1.0)
-    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: key)
+    monkeypatch.setattr(queue.storage, "save_audio", lambda p, key: key)
     saved = {}
     monkeypatch.setattr(queue.db, "insert_song", lambda s: saved.update(s))
 
@@ -170,7 +170,7 @@ def test_run_generation_passes_instrumental(monkeypatch, tmp_path):
     monkeypatch.setattr(queue.db, "recent_style_draws", lambda who, limit=5: [])
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 1.0)
-    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: key)
+    monkeypatch.setattr(queue.storage, "save_audio", lambda p, key: key)
     monkeypatch.setattr(queue.db, "insert_song", lambda s: None)
     queue.run_generation("j1", {"lyrics": "", "feeling": "", "instrumental": True,
                                 "overrides": {}}, "ze")
@@ -191,13 +191,13 @@ def test_run_generation_records_throttled_progress(monkeypatch, tmp_path):
     monkeypatch.setattr(queue.db, "update_job", lambda jid, **f: updates.append(f))
     monkeypatch.setattr(queue.storage, "wav_to_mp3", lambda w, m: m)
     monkeypatch.setattr(queue.storage, "probe_duration", lambda p: 1.0)
-    monkeypatch.setattr(queue.storage, "upload_to_r2", lambda p, key: key)
+    monkeypatch.setattr(queue.storage, "save_audio", lambda p, key: key)
     monkeypatch.setattr(queue.db, "insert_song", lambda s: None)
     queue.run_generation("j1", {"lyrics": "x", "feeling": "", "overrides": {}}, "ze")
     # 同阶段进度变化 <1% 不写库;阶段切换一定写
     assert [(u["stage"], u["progress"]) for u in updates] == [
         ("风格规划", 0.02), ("音频合成", 0.5), ("音频合成", 0.52), ("解码音频", 0.521),
-        ("上传保存", 0.96)]
+        ("保存作品", 0.96)]
 
 
 def test_worker_records_start_and_finish_times(monkeypatch):

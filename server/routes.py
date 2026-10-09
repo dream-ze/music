@@ -3,6 +3,7 @@ from urllib.parse import quote
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 
 from server import db, models, inspirations, queue as jobqueue, storage
 from server.progress import typical_seconds, with_eta
@@ -11,6 +12,18 @@ from src.presets import PRESETS, UI_GENRES
 from src.vocal_timbres import TIMBRES
 
 router = APIRouter(prefix="/api")
+
+
+@router.get("/media/{key}")
+def local_media(key: str):
+    # Opaque public audio URLs, matching existing public R2 playback semantics.
+    try:
+        path = storage.local_audio_path(key)
+    except ValueError:
+        raise HTTPException(404, "音频不存在")
+    if not path.is_file():
+        raise HTTPException(404, "音频不存在")
+    return FileResponse(path, media_type="audio/mpeg")
 
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]')
 
@@ -81,10 +94,10 @@ def delete_song(song_id: str, who: str = Depends(require_passcode)):
         # 但"删不掉、一直挂在库里"的歌体验更差。
         key = song["mp3_url"].rsplit("/", 1)[-1]
         try:
-            storage.delete_from_r2(key)
+            storage.delete_audio(song["mp3_url"])
         except Exception:
             import logging
-            logging.getLogger(__name__).warning("R2 删除失败: %s", key, exc_info=True)
+            logging.getLogger(__name__).warning("音频删除失败: %s", key, exc_info=True)
     db.delete_song(song_id)
     return {"deleted": True}
 
@@ -105,6 +118,10 @@ def download_song(song_id: str, who: str = Depends(require_passcode)):
     song = db.get_song(song_id)
     if not song or not song.get("mp3_url"):
         raise HTTPException(404, "歌曲不存在")
+    if song["mp3_url"].startswith("/api/media/"):
+        response = local_media(song["mp3_url"].removeprefix("/api/media/"))
+        response.headers["Content-Disposition"] = _content_disposition(song.get("title", ""))
+        return response
     r = requests.get(song["mp3_url"], timeout=30)
     r.raise_for_status()
     return Response(

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { getPasscode, setPasscode } from "@/lib/passcode"
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+import { API_BASE as BASE } from "@/lib/api-base"
 
 type VerifyResult = { ok: boolean; networkError?: boolean }
 

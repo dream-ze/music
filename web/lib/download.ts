@@ -1,6 +1,6 @@
 import { getPasscode } from "./passcode"
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+import { API_BASE as BASE } from "./api-base"
 
 /**
  * 把一首歌的 mp3 存到本地,参考网易云的下载体验。
