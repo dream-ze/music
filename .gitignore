@@ -18,3 +18,11 @@ web/node_modules
 web/.next
 web/.env.local
 web/out
+
+web/out-apk
+web/android/.gradle
+web/android/build
+web/android/app/build
+web/android/local.properties
+web/android/*.keystore
+web/android/*.jks

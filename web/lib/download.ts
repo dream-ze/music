@@ -1,6 +1,36 @@
 import { getPasscode } from "./passcode"
 
+import { Capacitor } from "@capacitor/core"
+
 import { API_BASE as BASE } from "./api-base"
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "")
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+/**
+ * 安卓 APK(Capacitor WebView)里 navigator.share 和 blob + <a download> 都不可用,
+ * 改成:写进应用缓存目录,再用系统分享面板打开,用户选"存储到文件"等即可。
+ * 直接写公共 Documents 目录在 Android 11+ 会被分区存储拦掉,所以不走那条路。
+ */
+async function saveNative(blob: Blob, filename: string): Promise<void> {
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+    import("@capacitor/filesystem"),
+    import("@capacitor/share"),
+  ])
+  const safeName = filename.replace(/[\\/:*?"<>|]/g, "_")
+  const { uri } = await Filesystem.writeFile({
+    path: safeName,
+    data: await blobToBase64(blob),
+    directory: Directory.Cache,
+  })
+  await Share.share({ title: safeName, url: uri, dialogTitle: "保存或分享歌曲" })
+}
 
 /**
  * 把一首歌的 mp3 存到本地,参考网易云的下载体验。
@@ -31,6 +61,11 @@ export async function downloadSong(songId: string, title: string): Promise<void>
   const filename = starMatch
     ? decodeURIComponent(starMatch[1])
     : plainMatch?.[1] || `${(title || "未命名").trim().replace(/[\\/:*?"<>|]/g, "_")}.mp3`
+
+  if (Capacitor.isNativePlatform()) {
+    await saveNative(blob, filename)
+    return
+  }
 
   const file = new File([blob], filename, { type: "audio/mpeg" })
 
